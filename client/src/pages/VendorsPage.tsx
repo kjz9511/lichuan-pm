@@ -386,7 +386,7 @@ export default function VendorsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-slate-100">供应商管理</h1>
-          <p className="text-sm text-slate-400 mt-0.5">管理外包供应商公司及成员信息，共 {vendorList.length} 家</p>
+          <p className="text-sm text-slate-400 mt-0.5">管理合作商公司及成员信息，共 {vendorList.length} 家</p>
         </div>
         <Button onClick={handleAdd} className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
           <Plus className="w-4 h-4" /> 新增供应商

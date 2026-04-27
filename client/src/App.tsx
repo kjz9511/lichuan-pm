@@ -70,7 +70,7 @@ function MainApp() {
       case 'reports':
         return <PlaceholderPage title="数据报表" description="项目汇总、合同收支对比、外包商绩效、月度趋势等可视化报表，将在二期上线。" />;
       case 'users':
-        return <PlaceholderPage title="用户管理" description="新建/编辑/启停内外部账号，分配角色权限，管理外包成员账号，将在二期上线。" />;
+        return <PlaceholderPage title="用户管理" description="新建/编辑/启停内外部账号，分配角色权限，管理合作商账号，将在二期上线。" />;
       case 'logs':
         return <PlaceholderPage title="操作日志" description="全平台操作追溯，记录所有用户的关键操作行为，支持按人员/项目/时间筛选，将在二期上线。" />;
       case 'notifications':

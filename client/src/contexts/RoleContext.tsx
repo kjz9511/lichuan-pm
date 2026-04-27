@@ -14,7 +14,7 @@ export interface RoleInfo {
 export const ROLES: RoleInfo[] = [
   { id: 'boss', label: '老板', name: '何家劲', avatar: 'H', color: 'text-purple-400', bgColor: 'bg-purple-500/20' },
   { id: 'pm', label: '项目经理', name: '张伟', avatar: '张', color: 'text-blue-400', bgColor: 'bg-blue-500/20' },
-  { id: 'vendor', label: '外包成员', name: '星辰前端', avatar: '外', color: 'text-amber-400', bgColor: 'bg-amber-500/20' },
+  { id: 'vendor', label: '合作商', name: '星辰前端', avatar: '外', color: 'text-amber-400', bgColor: 'bg-amber-500/20' },
   { id: 'finance', label: '财务人员', name: '李财务', avatar: '财', color: 'text-emerald-400', bgColor: 'bg-emerald-500/20' },
 ];
 
