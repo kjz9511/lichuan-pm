@@ -65,27 +65,45 @@ export interface Milestone {
   issues?: string[];
 }
 
+export interface VendorMember {
+  id: string;
+  name: string;
+  role: '前端开发' | '后端开发' | '全栈开发' | '测试工程师' | 'UI设计' | 'AI算法' | '移动端开发' | '产品经理' | '项目经理';
+  phone: string;
+  email?: string;
+  remark?: string;
+}
+
 export interface Vendor {
   id: string;
   name: string;
-  contact: string;
+  contact: string;        // 主联系人
   phone: string;
-  type: string;
+  email?: string;
+  type: string;           // 擅长领域
+  address?: string;       // 公司地址
+  remark?: string;        // 备注
   activeProjects: number;
   totalAmount: number;
   rating: number;
+  members: VendorMember[];
 }
 
 export interface Invoice {
   id: string;
   projectId: string;
   projectName: string;
+  contractId?: string;     // 关联合同
   vendor: string;
   amount: number;
   submitDate: string;
   status: '待审批' | '已审批' | '已付款' | '已驳回';
+  remark?: string;         // 发票备注
   approver?: string;
+  approveDate?: string;
+  rejectReason?: string;
   payDate?: string;
+  payVoucher?: string;     // 付款凭证说明
 }
 
 // ===== 项目数据 =====
@@ -395,10 +413,48 @@ export const milestones: Milestone[] = [
 
 // ===== 供应商数据 =====
 export const vendors: Vendor[] = [
-  { id: 'V-001', name: '星辰前端工作室', contact: '陈星', phone: '138-0001-0001', type: '前端开发', activeProjects: 1, totalAmount: 180000, rating: 4.5 },
-  { id: 'V-002', name: '大锤科技团队', contact: '赵大锤', phone: '139-0002-0002', type: '全栈开发', activeProjects: 1, totalAmount: 420000, rating: 4.8 },
-  { id: 'V-003', name: '智能云科技', contact: '周智', phone: '137-0003-0003', type: 'AI/算法', activeProjects: 1, totalAmount: 120000, rating: 3.8 },
-  { id: 'V-004', name: '飞翔移动科技', contact: '李飞', phone: '136-0004-0004', type: '移动端开发', activeProjects: 0, totalAmount: 260000, rating: 4.6 },
+  {
+    id: 'V-001', name: '星辰前端工作室', contact: '陈星', phone: '138-0001-0001',
+    email: 'chenxing@starfront.com', type: '前端开发', address: '上海市浦东新区张江高科技园区',
+    remark: '专注前端开发，响应速度快，UI还原度高', activeProjects: 1, totalAmount: 180000, rating: 4.5,
+    members: [
+      { id: 'VM-001-1', name: '陈星', role: '项目经理', phone: '138-0001-0001', email: 'chenxing@starfront.com', remark: '主要对接人' },
+      { id: 'VM-001-2', name: '林小雨', role: '前端开发', phone: '138-0001-0002', remark: 'Vue/React 双栈' },
+      { id: 'VM-001-3', name: '吴浩然', role: '前端开发', phone: '138-0001-0003', remark: '擅长动效与可视化' },
+      { id: 'VM-001-4', name: '方晓敏', role: 'UI设计', phone: '138-0001-0004', remark: 'Figma 高手' },
+    ],
+  },
+  {
+    id: 'V-002', name: '大锤科技团队', contact: '赵大锤', phone: '139-0002-0002',
+    email: 'zdachui@dachui.tech', type: '全栈开发', address: '北京市海淀区中关村软件园',
+    remark: '技术实力强，后端架构经验丰富', activeProjects: 1, totalAmount: 420000, rating: 4.8,
+    members: [
+      { id: 'VM-002-1', name: '赵大锤', role: '项目经理', phone: '139-0002-0002', email: 'zdachui@dachui.tech', remark: '技术总监兼PM' },
+      { id: 'VM-002-2', name: '钱后端', role: '后端开发', phone: '139-0002-0003', remark: 'Java/Go 双栈，微服务架构' },
+      { id: 'VM-002-3', name: '孙全栈', role: '全栈开发', phone: '139-0002-0004', remark: 'Node.js + React' },
+      { id: 'VM-002-4', name: '李测试', role: '测试工程师', phone: '139-0002-0005', remark: '自动化测试专家' },
+    ],
+  },
+  {
+    id: 'V-003', name: '智能云科技', contact: '周智', phone: '137-0003-0003',
+    email: 'zhouzhi@aicloud.cn', type: 'AI/算法', address: '深圳市南山区科技园',
+    remark: '专注AI算法，但交付质量需重点把控', activeProjects: 1, totalAmount: 120000, rating: 3.8,
+    members: [
+      { id: 'VM-003-1', name: '周智', role: 'AI算法', phone: '137-0003-0003', email: 'zhouzhi@aicloud.cn', remark: '算法负责人' },
+      { id: 'VM-003-2', name: '吴模型', role: 'AI算法', phone: '137-0003-0004', remark: '模型训练与优化' },
+    ],
+  },
+  {
+    id: 'V-004', name: '飞翔移动科技', contact: '李飞', phone: '136-0004-0004',
+    email: 'lifei@flyapp.com', type: '移动端开发', address: '广州市天河区珠江新城',
+    remark: '移动端开发经验丰富，iOS/Android 双端', activeProjects: 0, totalAmount: 260000, rating: 4.6,
+    members: [
+      { id: 'VM-004-1', name: '李飞', role: '项目经理', phone: '136-0004-0004', email: 'lifei@flyapp.com', remark: '主要对接人' },
+      { id: 'VM-004-2', name: '张iOS', role: '移动端开发', phone: '136-0004-0005', remark: 'Swift 原生开发' },
+      { id: 'VM-004-3', name: '王安卓', role: '移动端开发', phone: '136-0004-0006', remark: 'Kotlin 原生开发' },
+      { id: 'VM-004-4', name: '刘测试', role: '测试工程师', phone: '136-0004-0007', remark: '移动端专项测试' },
+    ],
+  },
 ];
 
 // ===== 发票/结算数据 =====
