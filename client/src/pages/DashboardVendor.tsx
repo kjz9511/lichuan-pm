@@ -87,7 +87,7 @@ export default function DashboardVendor() {
                   )}>{m.status}</span>
                   {m.status === '待提交' && (
                     <button
-                      onClick={() => toast.success('文件上传功能即将上线')}
+                      onClick={() => toast.success('文件上传功能将在二期上线')}
                       className="flex items-center gap-1 px-2 py-1 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded text-[10px]"
                     >
                       <FileUp className="w-3 h-3" />
@@ -109,7 +109,7 @@ export default function DashboardVendor() {
             我的发票 & 付款
           </div>
           <button
-            onClick={() => toast.info('提交发票功能即将上线')}
+            onClick={() => toast.info('提交发票功能将在二期上线')}
             className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
           >
             + 提交发票

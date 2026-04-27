@@ -66,17 +66,17 @@ function MainApp() {
       case 'invoices':
         return <InvoicesPage />;
       case 'documents':
-        return <PlaceholderPage title="我的文档" />;
+        return <PlaceholderPage title="我的文档" description="支持新建/编辑 Markdown 文档、设置权限（私有/项目成员/公开分享）、使用范本库，将在二期上线。" />;
       case 'reports':
-        return <PlaceholderPage title="数据报表" />;
+        return <PlaceholderPage title="数据报表" description="项目汇总、合同收支对比、外包商绩效、月度趋势等可视化报表，将在二期上线。" />;
       case 'users':
-        return <PlaceholderPage title="用户管理" />;
+        return <PlaceholderPage title="用户管理" description="新建/编辑/启停内外部账号，分配角色权限，管理外包成员账号，将在二期上线。" />;
       case 'logs':
-        return <PlaceholderPage title="操作日志" />;
+        return <PlaceholderPage title="操作日志" description="全平台操作追溯，记录所有用户的关键操作行为，支持按人员/项目/时间筛选，将在二期上线。" />;
       case 'notifications':
-        return <PlaceholderPage title="通知设置" />;
+        return <PlaceholderPage title="通知设置" description="配置关键事件提醒规则（里程碑截止、合同到期、发票待审批等），将在二期上线。" />;
       case 'settings':
-        return <PlaceholderPage title="系统设置" />;
+        return <PlaceholderPage title="系统设置" description="平台基础配置，包括公司信息、审批流程、通知模板等，将在二期上线。" />;
       default:
         return <DashboardBoss />;
     }

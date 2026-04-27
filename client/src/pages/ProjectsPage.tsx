@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   ChevronRight,
+  GitBranch,
   Plus,
   Search,
   XCircle,
@@ -13,6 +14,7 @@ import {
 import { useState } from 'react';
 import { projects, Project } from '../lib/mockData';
 import { toast } from 'sonner';
+import ProjectStagePage from './ProjectStagePage';
 
 function HealthBadge({ health }: { health: 'green' | 'yellow' | 'red' }) {
   if (health === 'green') return (
@@ -168,6 +170,12 @@ export default function ProjectsPage({ onNewProject }: ProjectsPageProps) {
   const [search, setSearch] = useState('');
   const [filterHealth, setFilterHealth] = useState<string>('all');
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [stageProjectId, setStageProjectId] = useState<string | null>(null);
+
+  // 进入阶段子流程页面
+  if (stageProjectId) {
+    return <ProjectStagePage projectId={stageProjectId} onBack={() => setStageProjectId(null)} canApprove={true} />;
+  }
 
   const filtered = projects.filter(p => {
     const matchSearch = p.name.includes(search) || p.id.includes(search) || p.manager.includes(search);
@@ -268,7 +276,16 @@ export default function ProjectsPage({ onNewProject }: ProjectsPageProps) {
                 <div className="text-[10px] text-emerald-400">已回 ¥{(p.paidAmount / 10000).toFixed(0)}万</div>
               </div>
 
-              <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 self-center" />
+              <div className="flex flex-col gap-1.5 shrink-0">
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                <button
+                  onClick={e => { e.stopPropagation(); setStageProjectId(p.id); }}
+                  className="flex items-center gap-1 px-2 py-1 bg-blue-600/15 hover:bg-blue-600/25 text-blue-400 border border-blue-500/30 rounded text-[10px] font-medium transition-colors"
+                >
+                  <GitBranch className="w-2.5 h-2.5" />
+                  阶段流程
+                </button>
+              </div>
             </div>
           </div>
         ))}

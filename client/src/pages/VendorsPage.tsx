@@ -10,7 +10,7 @@ export default function VendorsPage() {
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">共 {vendors.length} 家供应商</div>
         <button
-          onClick={() => toast.info('新增供应商功能即将上线')}
+          onClick={() => toast.info('新增供应商功能将在二期上线')}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-md transition-colors"
         >
           <Plus className="w-3.5 h-3.5" />

@@ -43,7 +43,7 @@ export default function InvoicesPage() {
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">全部发票记录</div>
         <button
-          onClick={() => toast.info('提交发票功能即将上线')}
+          onClick={() => toast.info('提交发票功能将在二期上线')}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-md transition-colors"
         >
           <Upload className="w-3.5 h-3.5" />
@@ -84,7 +84,7 @@ export default function InvoicesPage() {
                         审批
                       </button>
                       <button
-                        onClick={() => toast.info('付款功能即将上线')}
+                        onClick={() => toast.info('付款功能将在二期上线')}
                         className="px-2 py-1 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded text-[10px] hover:bg-blue-600/30 transition-colors"
                       >
                         出纳付款

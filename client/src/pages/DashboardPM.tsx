@@ -36,7 +36,7 @@ export default function DashboardPM() {
             我负责的项目
           </div>
           <button
-            onClick={() => toast.info('新建项目功能即将上线')}
+            onClick={() => toast.info('新建项目功能将在二期上线')}
             className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
           >
             <Plus className="w-3.5 h-3.5" />

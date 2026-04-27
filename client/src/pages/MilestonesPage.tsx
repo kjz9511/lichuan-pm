@@ -74,7 +74,7 @@ export default function MilestonesPage() {
         </div>
 
         <button
-          onClick={() => toast.info('新建里程碑功能即将上线')}
+          onClick={() => toast.info('新建里程碑功能将在二期上线')}
           className="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-md transition-colors"
         >
           <Plus className="w-3.5 h-3.5" />
@@ -127,7 +127,7 @@ export default function MilestonesPage() {
                 <div className="shrink-0 flex flex-col gap-2">
                   {m.status === '待提交' && (
                     <button
-                      onClick={() => toast.success('文件上传功能即将上线')}
+                      onClick={() => toast.success('文件上传功能将在二期上线')}
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-md text-xs hover:bg-blue-600/30 transition-colors"
                     >
                       <FileUp className="w-3.5 h-3.5" />

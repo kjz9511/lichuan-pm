@@ -445,7 +445,7 @@ export default function NewProjectPage({ onBack }: NewProjectPageProps) {
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">立项附件</div>
           <button
             type="button"
-            onClick={() => toast.info('文件上传功能即将上线')}
+            onClick={() => toast.info('文件上传功能将在二期上线')}
             className="w-full h-20 border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center gap-1.5 hover:border-blue-500/50 transition-colors"
           >
             <Upload className="w-5 h-5 text-muted-foreground" />
