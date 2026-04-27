@@ -1,8 +1,10 @@
 // 厉川外包项目管理平台 — 项目经理仪表盘
 import { cn } from '@/lib/utils';
-import { Bot, ClipboardList, FolderOpen, Plus, TrendingUp } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Bot, ClipboardList, FolderOpen, Plus, RefreshCw, Sparkles, TrendingUp } from 'lucide-react';
 import { milestones, projects } from '../lib/mockData';
 import { toast } from 'sonner';
+import { useAI } from '@/hooks/useAI';
 
 const STAGES = ['项目启动', '需求确认', '项目执行', '项目验收', '项目结项'];
 

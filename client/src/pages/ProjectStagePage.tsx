@@ -13,8 +13,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import {
   CheckCircle2, Circle, Lock, Upload, Download, FileText, ChevronRight,
-  ArrowLeft, Rocket, ClipboardList, Code2, BadgeCheck, FolderOpen, AlertCircle
+  ArrowLeft, Rocket, ClipboardList, Code2, BadgeCheck, FolderOpen, AlertCircle,
+  Bot, Sparkles, Lightbulb
 } from 'lucide-react';
+import { useAI } from '@/hooks/useAI';
 
 // ── 阶段配置 ────────────────────────────────────────────────
 interface StageConfig {
@@ -247,6 +249,40 @@ function StageCard({ stage, record, index, isLast, onOpen }: StageCardProps) {
   const isDone = record.status === 'done';
   const isPending = record.status === 'pending';
   const isLocked = record.status === 'locked';
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiText, setAiText] = useState('');
+  const { run: runAI, loading: aiLoading } = useAI({ stream: true });
+
+  const handleAIAdvice = async () => {
+    setAiOpen(true);
+    setAiText('');
+    const filesText = record.proofFile
+      ? `已上传阶段证明：${record.proofFile}；${Object.entries(record.optionalFiles).map(([k, v]) => `${k}：${v}`).join('；')}`
+      : '尚未上传任何文件';
+    const prompt = `你是一位经验丰富的外包项目管理顾问。当前项目正处于"${stage.name}"阶段，该阶段刚刚完成。
+
+阶段信息：
+- 阶段名称：${stage.name}
+- 阶段描述：${stage.description}
+- 完成日期：${record.submitDate || '今日'}
+- 已提交文件：${filesText}
+- 备注：${record.remark || '无'}
+
+请给出下一步行动建议，包含3个部分：
+1. 【阶段小结】用1-2句话总结本阶段完成情况
+2. 【下一步重点】列出进入下一阶段前需要重点关注的2-3件事
+3. 【风险预警】指出可能影响项目推进的1-2个潜在风险
+
+请用中文回答，语言简洁实用，每部分不超过80字。`;
+
+    await runAI(
+      [
+        { role: 'system', content: '你是厉川外包项目管理平台的AI项目顾问，专注于外包项目阶段管理和风险预警。' },
+        { role: 'user', content: prompt }
+      ],
+      (chunk) => setAiText(prev => prev + chunk)
+    );
+  };
 
   return (
     <div className="flex gap-4">
@@ -331,6 +367,36 @@ function StageCard({ stage, record, index, isLast, onOpen }: StageCardProps) {
                 {f}
               </span>
             ))}
+          </div>
+        )}
+
+        {/* AI 行动建议 — 仅已完成阶段显示 */}
+        {isDone && (
+          <div className="mt-3">
+            {!aiOpen ? (
+              <button
+                onClick={handleAIAdvice}
+                className="flex items-center gap-1.5 text-xs text-purple-400 hover:text-purple-300 transition-colors"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                AI 生成下一步建议
+              </button>
+            ) : (
+              <div className="rounded-lg border border-purple-500/20 bg-purple-950/20 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-purple-400">
+                    <Bot className="w-3.5 h-3.5" />
+                    AI 阶段建议
+                    {aiLoading && <span className="text-slate-500 animate-pulse">· 生成中...</span>}
+                  </div>
+                  <button onClick={() => { setAiOpen(false); setAiText(''); }}
+                    className="text-xs text-slate-600 hover:text-slate-400">收起</button>
+                </div>
+                <div className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
+                  {aiText || (aiLoading ? '正在生成建议...' : '')}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

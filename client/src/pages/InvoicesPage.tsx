@@ -1,7 +1,8 @@
 // 设计风格：深色专业管理台风 - 发票与结算页
 // 流程：外包提交发票 → 老板审批 → 财务出纳付款，状态实时更新
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useAI } from '@/hooks/useAI';
 import { invoices as initialInvoices, Invoice, projects, contracts } from '@/lib/mockData';
 import { useRole } from '@/contexts/RoleContext';
 import { Button } from '@/components/ui/button';
@@ -14,7 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import {
   Receipt, Plus, CheckCircle2, XCircle, CreditCard, Clock, AlertCircle, Circle, ChevronRight,
-  FileText, Building2, Calendar, ChevronDown, ChevronUp, Eye
+  FileText, Building2, Calendar, ChevronDown, ChevronUp, Eye, Bot, Sparkles, ShieldAlert
 } from 'lucide-react';
 
 // ── 状态配置 ────────────────────────────────────────────────
@@ -123,6 +124,114 @@ function SubmitInvoiceDialog({ open, onClose, onSubmit }: SubmitFormProps) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+
+// ── AI 异常检测面板 ─────────────────────────────────────────
+interface AICheckPanelProps {
+  invoice: Invoice;
+  allInvoices: Invoice[];
+}
+function AICheckPanel({ invoice, allInvoices }: AICheckPanelProps) {
+  const [open, setOpen] = useState(false);
+  const [summary, setSummary] = useState('');
+  const [riskLevel, setRiskLevel] = useState<'low' | 'medium' | 'high' | null>(null);
+  const { run: runAI, loading } = useAI({ stream: true });
+
+  const handleCheck = async () => {
+    setOpen(true);
+    setSummary('');
+    setRiskLevel(null);
+
+    // 同项目历史发票
+    const sameProject = allInvoices.filter(i => i.projectId === invoice.projectId && i.id !== invoice.id);
+    const sameVendor = allInvoices.filter(i => i.vendor === invoice.vendor && i.id !== invoice.id);
+    const totalPaid = sameVendor.filter(i => i.status === '已付款').reduce((s, i) => s + i.amount, 0);
+    const relatedContract = allInvoices.find(i => i.contractId && i.contractId === invoice.contractId);
+
+    const historyText = sameProject.length > 0
+      ? sameProject.map(i => `${i.id}：¥${i.amount.toLocaleString()}，${i.status}，${i.submitDate}`).join('；')
+      : '无历史发票';
+
+    const prompt = `你是一位专业的财务风险审核员。请对以下发票进行异常检测分析，输出3个部分：
+1. 【风险等级】只输出"低风险"、"中风险"或"高风险"之一，后跟一句理由
+2. 【异常检测】列出检测到的异常点（如金额异常、重复提交、超出合同范围等），若无异常则说明"未发现异常"
+3. 【审批建议】给出1-2条具体的审批建议
+
+待审发票信息：
+- 发票编号：${invoice.id}
+- 供应商：${invoice.vendor}
+- 关联项目：${invoice.projectName}
+- 发票金额：¥${invoice.amount.toLocaleString()}
+- 提交日期：${invoice.submitDate}
+- 备注：${invoice.remark || '无'}
+
+同项目历史发票：${historyText}
+该供应商累计已付款：¥${totalPaid.toLocaleString()}
+本次发票占供应商累计付款比例：${totalPaid > 0 ? ((invoice.amount / (totalPaid + invoice.amount)) * 100).toFixed(0) + '%' : '首次开票'}
+
+请用中文回答，语言简洁专业。`;
+
+    let fullText = '';
+    await runAI(
+      [
+        { role: 'system', content: '你是厉川外包项目管理平台的AI财务审核助手，专注于发票异常检测与风险识别。' },
+        { role: 'user', content: prompt }
+      ],
+      (chunk) => {
+        fullText += chunk;
+        setSummary(fullText);
+        // 动态识别风险等级
+        if (fullText.includes('高风险')) setRiskLevel('high');
+        else if (fullText.includes('中风险')) setRiskLevel('medium');
+        else if (fullText.includes('低风险')) setRiskLevel('low');
+      }
+    );
+  };
+
+  const riskColors = {
+    low: 'bg-green-500/10 border-green-500/20 text-green-400',
+    medium: 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400',
+    high: 'bg-red-500/10 border-red-500/20 text-red-400',
+  };
+
+  return (
+    <div className="mt-2">
+      {!open ? (
+        <button
+          onClick={handleCheck}
+          className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          AI 异常检测
+        </button>
+      ) : (
+        <div className={`rounded-lg border p-3 space-y-2 ${riskLevel ? riskColors[riskLevel] : 'bg-blue-950/30 border-blue-500/20'}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-xs font-medium">
+              <Bot className="w-3.5 h-3.5" />
+              <span>AI 异常检测</span>
+              {loading && <span className="text-slate-500 animate-pulse">· 检测中...</span>}
+              {riskLevel && !loading && (
+                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                  riskLevel === 'high' ? 'bg-red-500/20 text-red-300' :
+                  riskLevel === 'medium' ? 'bg-yellow-500/20 text-yellow-300' :
+                  'bg-green-500/20 text-green-300'
+                }`}>
+                  {riskLevel === 'high' ? '高风险' : riskLevel === 'medium' ? '中风险' : '低风险'}
+                </span>
+              )}
+            </div>
+            <button onClick={() => { setOpen(false); setSummary(''); setRiskLevel(null); }}
+              className="text-xs text-slate-600 hover:text-slate-400">收起</button>
+          </div>
+          <div className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
+            {summary || (loading ? '正在检测发票异常...' : '')}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -546,6 +655,10 @@ export default function InvoicesPage() {
                         <p className="text-xs text-green-400 mt-1 flex items-center gap-1">
                           <CheckCircle2 className="w-3 h-3" /> 凭证：{inv.payVoucher}
                         </p>
+                      )}
+                      {/* AI 异常检测 — 待审批和已审批状态显示 */}
+                      {['待审批', '已审批'].includes(inv.status) && (
+                        <AICheckPanel invoice={inv} allInvoices={invoiceList} />
                       )}
                     </div>
                   </div>

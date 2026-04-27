@@ -1,9 +1,11 @@
 // 厉川外包项目管理平台 — 财务人员仪表盘
 import { cn } from '@/lib/utils';
-import { AlertCircle, CheckCircle, DollarSign, FileText } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { AlertCircle, Bot, CheckCircle, DollarSign, FileText, RefreshCw, Sparkles } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { contracts, invoices, monthlyRevenue } from '../lib/mockData';
 import { toast } from 'sonner';
+import { useAI } from '@/hooks/useAI';
 
 export default function DashboardFinance() {
   const pendingInvoices = invoices.filter(i => i.status === '待审批');

@@ -2,25 +2,33 @@
 // 设计风格：深色专业管理台风，数据卡片 + 图表 + 项目列表
 
 import { cn } from '@/lib/utils';
+import { useState, useEffect } from 'react';
 import {
   AlertTriangle,
   ArrowUpRight,
+  Bot,
   CheckCircle2,
   Clock,
   DollarSign,
   FolderOpen,
+  RefreshCw,
+  Sparkles,
   TrendingUp,
   XCircle,
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import {
+  contracts,
   dashboardStats,
+  invoices,
+  milestones,
   monthlyRevenue,
   notifications,
   operationLogs,
   projects,
   stageDistribution,
 } from '../lib/mockData';
+import { useAI } from '@/hooks/useAI';
 
 function HealthBadge({ health }: { health: 'green' | 'yellow' | 'red' }) {
   if (health === 'green') return <span className="badge-green px-2 py-0.5 rounded text-xs font-medium">健康</span>;

@@ -6,17 +6,20 @@
 import { cn } from '@/lib/utils';
 import {
   ArrowLeft,
+  Bot,
   Building2,
   ChevronDown,
   ChevronUp,
   FileText,
   GitBranch,
   Plus,
+  Sparkles,
   X,
 } from 'lucide-react';
 import { useState } from 'react';
 import { contracts, Contract, projects } from '../lib/mockData';
 import { toast } from 'sonner';
+import { useAI } from '@/hooks/useAI';
 
 // ─── Badge 组件 ───────────────────────────────────────────────
 function ContractTypeBadge({ type }: { type: string }) {
@@ -38,7 +41,46 @@ function PaymentStageBadge({ status }: { status: string }) {
 // ─── 合同卡片（主合同 or 子合同） ─────────────────────────────
 function ContractCard({ contract, isChild = false }: { contract: Contract; isChild?: boolean }) {
   const [expanded, setExpanded] = useState(false);
+  const [aiSummary, setAiSummary] = useState('');
+  const [aiOpen, setAiOpen] = useState(false);
+  const { run: runAI, loading: aiLoading } = useAI({ stream: true });
   const paidRatio = contract.amount > 0 ? contract.paidAmount / contract.amount : 0;
+
+  const handleAISummary = async () => {
+    setAiOpen(true);
+    setAiSummary('');
+    const stagesText = contract.stages.map(s =>
+      `${s.name}：¥${s.amount.toLocaleString()}，到期${s.dueDate}，状态${s.status}`
+    ).join('；');
+    const prompt = `你是一位专业的合同风险分析师。请对以下合同信息进行简洁分析，输出3个部分：
+1. 【核心摘要】用2-3句话概括合同要点
+2. 【风险提示】列出1-3个潜在风险点（如逾期、金额异常、条款缺失等）
+3. 【行动建议】给出1-2条具体的跟进建议
+
+合同信息：
+- 合同名称：${contract.contractName}
+- 合同编号：${contract.contractNo || '未填写'}
+- 合同类型：${contract.type}
+- 对方主体：${contract.vendor}
+- 合同金额：¥${contract.amount.toLocaleString()}
+- 已${contract.type === '甲方合同' ? '收' : '付'}：¥${contract.paidAmount.toLocaleString()}（${(paidRatio * 100).toFixed(0)}%）
+- 待${contract.type === '甲方合同' ? '收' : '付'}：¥${contract.pendingAmount.toLocaleString()}
+- 签订日期：${contract.signDate}
+- 合同周期：${contract.startDate} 至 ${contract.endDate}
+- 合同状态：${contract.status}
+- 合同信息：${contract.contractInfo || '未填写'}
+- 分期节点：${stagesText || '无'}
+
+请用中文回答，语言简洁专业，每个部分不超过100字。`;
+
+    await runAI(
+      [
+        { role: 'system', content: '你是厉川外包项目管理平台的AI助手，专注于合同风险分析与项目管理建议。' },
+        { role: 'user', content: prompt }
+      ],
+      (chunk) => setAiSummary(prev => prev + chunk)
+    );
+  };
 
   return (
     <div className={cn(
