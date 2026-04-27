@@ -27,17 +27,23 @@ export interface Project {
 
 export interface Contract {
   id: string;
+  contractNo: string;         // 合同编号
+  contractName: string;       // 合同名称
+  contractInfo: string;       // 合同信息/摘要
+  remark: string;             // 合同备注
   projectId: string;
   projectName: string;
   type: '甲方合同' | '外包协议';
-  vendor: string;
+  vendor: string;             // 甲方合同=甲方客户名；外协合同=外包供应商名
   amount: number;
-  signDate: string;
-  endDate: string;
+  signDate: string;           // 合同签订时间
+  startDate: string;          // 项目计划开始时间
+  endDate: string;            // 项目计划结束时间
   status: '已签署' | '待签署' | '已到期';
   paidAmount: number;
   pendingAmount: number;
   stages: PaymentStage[];
+  parentContractId?: string;  // 外协合同关联的主合同ID（甲方合同）
 }
 
 export interface PaymentStage {
@@ -183,14 +189,20 @@ export const projects: Project[] = [
 
 // ===== 合同数据 =====
 export const contracts: Contract[] = [
+  // ── 项目1：厉川官网重构 ──
   {
     id: 'CON-2026-001',
+    contractNo: 'HT-2026-001',
+    contractName: '厉川官网重构项目服务合同',
+    contractInfo: '为厉川科技提供官网全面重构服务，包含UI设计、前端开发及上线部署。',
+    remark: '甲方要求5月底前上线，需重点保障交付节奏。',
     projectId: 'PRJ-2026-001',
     projectName: '厉川官网重构项目',
     type: '甲方合同',
     vendor: '厉川科技',
     amount: 280000,
     signDate: '2026-02-28',
+    startDate: '2026-03-01',
     endDate: '2026-05-31',
     status: '已签署',
     paidAmount: 140000,
@@ -203,30 +215,42 @@ export const contracts: Contract[] = [
   },
   {
     id: 'CON-2026-002',
+    contractNo: 'WX-2026-001',
+    contractName: '官网重构前端开发外协协议',
+    contractInfo: '将官网前端开发工作分包给星辰前端工作室，含页面开发、联调及交付。',
+    remark: '外协方需按里程碑节点交付，延期将扣除尾款10%。',
     projectId: 'PRJ-2026-001',
     projectName: '厉川官网重构项目',
     type: '外包协议',
     vendor: '星辰前端工作室',
     amount: 180000,
     signDate: '2026-03-01',
+    startDate: '2026-03-01',
     endDate: '2026-05-31',
     status: '已签署',
     paidAmount: 90000,
     pendingAmount: 90000,
+    parentContractId: 'CON-2026-001',
     stages: [
       { name: '预付款', amount: 54000, dueDate: '2026-03-05', status: '已回款' },
       { name: '中期款', amount: 72000, dueDate: '2026-04-30', status: '已回款' },
       { name: '尾款', amount: 54000, dueDate: '2026-05-31', status: '未回款' },
     ],
   },
+  // ── 项目2：供应链管理系统 ──
   {
     id: 'CON-2026-003',
+    contractNo: 'HT-2026-002',
+    contractName: '供应链管理系统开发合同',
+    contractInfo: '为厉川物流开发供应链管理系统，覆盖采购、仓储、配送全流程数字化。',
+    remark: '合同含一年免费运维服务，需在合同附件中注明。',
     projectId: 'PRJ-2026-002',
     projectName: '供应链管理系统开发',
     type: '甲方合同',
     vendor: '厉川物流',
     amount: 560000,
     signDate: '2026-03-28',
+    startDate: '2026-04-01',
     endDate: '2026-07-30',
     status: '已签署',
     paidAmount: 112000,
@@ -239,17 +263,71 @@ export const contracts: Contract[] = [
     ],
   },
   {
+    id: 'CON-2026-005',
+    contractNo: 'WX-2026-002',
+    contractName: '供应链系统后端开发外协协议',
+    contractInfo: '将供应链系统后端核心模块分包给大锤科技团队，含接口开发、数据库设计及联调。',
+    remark: '大锤团队负责后端，前端由内部完成，需做好接口对接规范。',
+    projectId: 'PRJ-2026-002',
+    projectName: '供应链管理系统开发',
+    type: '外包协议',
+    vendor: '大锤科技团队',
+    amount: 280000,
+    signDate: '2026-04-01',
+    startDate: '2026-04-01',
+    endDate: '2026-07-30',
+    status: '已签署',
+    paidAmount: 84000,
+    pendingAmount: 196000,
+    parentContractId: 'CON-2026-003',
+    stages: [
+      { name: '预付款', amount: 84000, dueDate: '2026-04-05', status: '已回款' },
+      { name: '中期款', amount: 112000, dueDate: '2026-06-01', status: '未回款' },
+      { name: '尾款', amount: 84000, dueDate: '2026-07-30', status: '未回款' },
+    ],
+  },
+  // ── 项目3：AI客服机器人 ──
+  {
+    id: 'CON-2026-006',
+    contractNo: 'HT-2026-003',
+    contractName: 'AI客服机器人接入服务合同',
+    contractInfo: '为厉川零售提供AI客服机器人接入服务，含模型训练、系统集成及上线运营。',
+    remark: '甲方要求4月底完成验收，进度紧张需重点关注。',
+    projectId: 'PRJ-2026-003',
+    projectName: 'AI客服机器人接入',
+    type: '甲方合同',
+    vendor: '厉川零售',
+    amount: 200000,
+    signDate: '2026-01-08',
+    startDate: '2026-01-10',
+    endDate: '2026-04-30',
+    status: '已签署',
+    paidAmount: 160000,
+    pendingAmount: 40000,
+    stages: [
+      { name: '首付款', amount: 60000, dueDate: '2026-01-10', status: '已回款' },
+      { name: '中期款', amount: 100000, dueDate: '2026-03-15', status: '已回款' },
+      { name: '尾款', amount: 40000, dueDate: '2026-04-30', status: '未回款' },
+    ],
+  },
+  {
     id: 'CON-2026-004',
+    contractNo: 'WX-2026-003',
+    contractName: 'AI算法模型外协协议',
+    contractInfo: '将AI客服核心算法模型开发分包给智能云科技，含模型训练、优化及交付。',
+    remark: '智能云科技需提供模型说明文档及源码，作为验收材料。',
     projectId: 'PRJ-2026-003',
     projectName: 'AI客服机器人接入',
     type: '外包协议',
     vendor: '智能云科技',
     amount: 120000,
     signDate: '2026-01-10',
+    startDate: '2026-01-10',
     endDate: '2026-04-30',
     status: '已签署',
     paidAmount: 108000,
     pendingAmount: 12000,
+    parentContractId: 'CON-2026-006',
     stages: [
       { name: '预付款', amount: 36000, dueDate: '2026-01-15', status: '已回款' },
       { name: '中期款', amount: 48000, dueDate: '2026-03-15', status: '已回款' },
