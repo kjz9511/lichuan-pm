@@ -69,6 +69,26 @@ const STAGES: StageConfig[] = [
   },
 ];
 
+// ── 精简模式阶段配置（需求确认 + 系统上线）────────────────────
+const STAGES_LITE: StageConfig[] = [
+  {
+    id: 'requirement', name: '需求确认', icon: ClipboardList,
+    color: 'text-purple-400', bgColor: 'bg-purple-500/10', borderColor: 'border-purple-500/30',
+    proofLabel: '需求确认阶段证明',
+    optionalFiles: ['需求规格说明书', '原型文件'],
+    description: '与甲方确认需求，输出需求规格说明书并双方签字确认',
+  },
+  {
+    id: 'golive', name: '系统上线', icon: Code2,
+    color: 'text-green-400', bgColor: 'bg-green-500/10', borderColor: 'border-green-500/30',
+    proofLabel: '上线阶段证明',
+    optionalFiles: ['上线部署记录', '测试报告', '验收确认书'],
+    description: '完成系统开发、测试、上线部署及甲方验收，提交上线证明材料',
+  },
+];
+
+type StageMode = 'standard' | 'lite';
+
 // ── 阶段记录 ────────────────────────────────────────────────
 interface StageRecord {
   stageId: string;

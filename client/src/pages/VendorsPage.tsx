@@ -1,5 +1,6 @@
 // 设计风格：深色专业管理台风 - 供应商管理页
-// 供应商为公司层级，下挂多个成员（前端/后端/测试等），支持新增/编辑/删除
+// 供应商支持「公司/团队」和「个体」两种类型，下挂多个成员，支持新增/编辑/删除
+type VendorEntityType = '公司/团队' | '个体';
 
 import { useState } from 'react';
 import { vendors as initialVendors, Vendor, VendorMember } from '@/lib/mockData';
@@ -13,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import {
   Building2, Phone, Mail, MapPin, Star, Users, Plus, Pencil, Trash2,
-  ChevronDown, ChevronUp, Briefcase, UserPlus, X
+  ChevronDown, ChevronUp, Briefcase, UserPlus, X, User
 } from 'lucide-react';
 
 const ROLE_OPTIONS: VendorMember['role'][] = [
@@ -102,6 +103,7 @@ function VendorFormDialog({ open, onClose, initial, onSave }: VendorFormProps) {
     address: '', remark: '', activeProjects: 0, totalAmount: 0, rating: 5, members: []
   });
   const [form, setForm] = useState<Vendor>(() => initial || makeEmpty());
+  const [entityType, setEntityType] = useState<VendorEntityType>('公司/团队');
 
   const handleOpenChange = (v: boolean) => {
     if (!v) { onClose(); return; }
@@ -124,8 +126,8 @@ function VendorFormDialog({ open, onClose, initial, onSave }: VendorFormProps) {
   };
 
   const handleSave = () => {
-    if (!form.name.trim()) { toast.error('请填写供应商名称'); return; }
-    if (!form.contact.trim()) { toast.error('请填写主联系人'); return; }
+    if (!form.name.trim()) { toast.error(entityType === '个体' ? '请填写姓名' : '请填写供应商名称'); return; }
+    if (entityType === '公司/团队' && !form.contact.trim()) { toast.error('请填写主联系人'); return; }
     if (!form.phone.trim()) { toast.error('请填写联系电话'); return; }
     for (const m of form.members) {
       if (!m.name.trim()) { toast.error('成员姓名不能为空'); return; }
@@ -146,14 +148,40 @@ function VendorFormDialog({ open, onClose, initial, onSave }: VendorFormProps) {
         </DialogHeader>
         <div className="space-y-6 py-2">
           <div>
+            {/* 主体类型切换 */}
+            <div className="flex gap-2 mb-4">
+              {(['公司/团队', '个体'] as VendorEntityType[]).map(t => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setEntityType(t)}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all border ${
+                    entityType === t
+                      ? t === '公司/团队'
+                        ? 'bg-blue-600/20 text-blue-400 border-blue-500/40'
+                        : 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                      : 'text-slate-500 border-slate-700 hover:border-slate-500'
+                  }`}
+                >
+                  {t === '公司/团队' ? <Building2 className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
+                  {t}
+                </button>
+              ))}
+              {entityType === '个体' && (
+                <span className="text-xs text-amber-400/70 self-center ml-1">· 适用于个人接单、私下转账场景</span>
+              )}
+            </div>
             <h3 className="text-sm font-medium text-blue-400 mb-3 flex items-center gap-2">
-              <Building2 className="w-4 h-4" /> 公司基本信息
+              {entityType === '公司/团队' ? <Building2 className="w-4 h-4" /> : <User className="w-4 h-4" />}
+              {entityType === '公司/团队' ? '公司基本信息' : '个体基本信息'}
             </h3>
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
-                <Label className="text-slate-300 text-sm">供应商名称 <span className="text-red-400">*</span></Label>
+                <Label className="text-slate-300 text-sm">
+                  {entityType === '公司/团队' ? '供应商名称' : '姓名'} <span className="text-red-400">*</span>
+                </Label>
                 <Input value={form.name} onChange={e => updateField('name', e.target.value)}
-                  placeholder="请输入公司/团队名称"
+                  placeholder={entityType === '公司/团队' ? '请输入公司/团队名称' : '请输入真实姓名'}
                   className="mt-1 bg-slate-800 border-slate-700 text-slate-100" />
               </div>
               <div>
@@ -169,11 +197,13 @@ function VendorFormDialog({ open, onClose, initial, onSave }: VendorFormProps) {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label className="text-slate-300 text-sm">主联系人 <span className="text-red-400">*</span></Label>
-                <Input value={form.contact} onChange={e => updateField('contact', e.target.value)}
-                  placeholder="姓名" className="mt-1 bg-slate-800 border-slate-700 text-slate-100" />
-              </div>
+              {entityType === '公司/团队' && (
+                <div>
+                  <Label className="text-slate-300 text-sm">主联系人 <span className="text-red-400">*</span></Label>
+                  <Input value={form.contact} onChange={e => updateField('contact', e.target.value)}
+                    placeholder="姓名" className="mt-1 bg-slate-800 border-slate-700 text-slate-100" />
+                </div>
+              )}
               <div>
                 <Label className="text-slate-300 text-sm">联系电话 <span className="text-red-400">*</span></Label>
                 <Input value={form.phone} onChange={e => updateField('phone', e.target.value)}
@@ -184,11 +214,13 @@ function VendorFormDialog({ open, onClose, initial, onSave }: VendorFormProps) {
                 <Input value={form.email || ''} onChange={e => updateField('email', e.target.value)}
                   placeholder="example@company.com" className="mt-1 bg-slate-800 border-slate-700 text-slate-100" />
               </div>
-              <div className="col-span-2">
-                <Label className="text-slate-300 text-sm">公司地址</Label>
-                <Input value={form.address || ''} onChange={e => updateField('address', e.target.value)}
-                  placeholder="省市区详细地址" className="mt-1 bg-slate-800 border-slate-700 text-slate-100" />
-              </div>
+              {entityType === '公司/团队' && (
+                <div className="col-span-2">
+                  <Label className="text-slate-300 text-sm">公司地址</Label>
+                  <Input value={form.address || ''} onChange={e => updateField('address', e.target.value)}
+                    placeholder="省市区详细地址" className="mt-1 bg-slate-800 border-slate-700 text-slate-100" />
+                </div>
+              )}
               <div className="col-span-2">
                 <Label className="text-slate-300 text-sm">备注</Label>
                 <Textarea value={form.remark || ''} onChange={e => updateField('remark', e.target.value)}

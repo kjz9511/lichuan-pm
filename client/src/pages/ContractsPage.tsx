@@ -219,6 +219,8 @@ interface ContractFormState {
   endDate: string;
   projectId: string;
   parentContractId: string;
+  payMethod: string;
+  payAccount: string;
   stages: { name: string; amount: string; dueDate: string }[];
 }
 
@@ -235,6 +237,8 @@ const EMPTY_FORM: ContractFormState = {
   endDate: '',
   projectId: '',
   parentContractId: '',
+  payMethod: '银行转账',
+  payAccount: '',
   stages: [{ name: '首付款', amount: '', dueDate: '' }],
 };
 
@@ -382,10 +386,50 @@ function ContractFormModal({
                 type="text"
                 value={form.vendor}
                 onChange={e => setForm(f => ({ ...f, vendor: e.target.value }))}
-                placeholder={form.contractType === '甲方合同' ? '请输入甲方客户名称' : '请输入外包供应商名称'}
+                placeholder={form.contractType === '甲方合同' ? '请输入甲方客户名称' : '请输入外包供应商名称（公司/个人均可）'}
                 className={inputCls}
               />
             </div>
+            {/* 外协合同：付款方式 */}
+            {form.contractType === '外协合同' && (
+              <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3 space-y-3">
+                <div className="text-xs font-semibold text-amber-400/80 uppercase tracking-wider">付款方式</div>
+                <div className="grid grid-cols-4 gap-2">
+                  {['银行转账', '支付宝', '微信', '直接打账'].map(m => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, payMethod: m }))}
+                      className={`py-2 rounded-lg text-xs font-medium transition-all border ${
+                        form.payMethod === m
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                          : 'text-slate-500 border-slate-700 hover:border-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      {m === '支付宝' ? '💙 支付宝' : m === '微信' ? '💚 微信' : m === '银行转账' ? '🏦 银行转账' : '💰 直接打账'}
+                    </button>
+                  ))}
+                </div>
+                <div>
+                  <label className={labelCls}>
+                    {form.payMethod === '银行转账' ? '银行账号/户名' :
+                     form.payMethod === '支付宝' ? '支付宝账号' :
+                     form.payMethod === '微信' ? '微信号/收款码备注' : '收款人/账户信息'}
+                  </label>
+                  <input
+                    type="text"
+                    value={form.payAccount}
+                    onChange={e => setForm(f => ({ ...f, payAccount: e.target.value }))}
+                    placeholder={
+                      form.payMethod === '银行转账' ? '如：工商银行 6222xxxx / 张三' :
+                      form.payMethod === '支付宝' ? '如：138xxxx 或邮箱' :
+                      form.payMethod === '微信' ? '如：微信号 wxid_xxx 或手机号' : '收款人姓名 / 账户备注'
+                    }
+                    className={inputCls}
+                  />
+                </div>
+              </div>
+            )}
 
             <div>
               <label className={labelCls}>合同信息</label>
