@@ -29,6 +29,7 @@ import {
   stageDistribution,
 } from '../lib/mockData';
 import { useAI } from '@/hooks/useAI';
+import { useTransfer } from '../contexts/TransferContext';
 
 function HealthBadge({ health }: { health: 'green' | 'yellow' | 'red' }) {
   if (health === 'green') return <span className="badge-green px-2 py-0.5 rounded text-xs font-medium">健康</span>;
@@ -50,6 +51,9 @@ const STAGE_COLORS = ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#6b7280'];
 
 export default function DashboardBoss() {
   const activeProjects = projects.filter(p => p.status === '进行中');
+  const { requests, approveRequest, rejectRequest } = useTransfer();
+  const pendingTransfers = requests.filter(r => r.status === 'pending');
+  const totalPending = 2 + pendingTransfers.length;
 
   return (
     <div className="p-6 space-y-6">
@@ -228,11 +232,38 @@ export default function DashboardBoss() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* 待审批 */}
         <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-border">
+          <div className="px-4 py-3 border-b border-border flex items-center gap-2">
             <span className="text-sm font-semibold text-foreground">待审批事项</span>
-            <span className="ml-2 w-5 h-5 rounded-full bg-red-500/20 text-red-400 text-[10px] inline-flex items-center justify-center font-bold">2</span>
+            <span className="w-5 h-5 rounded-full bg-red-500/20 text-red-400 text-[10px] inline-flex items-center justify-center font-bold">{totalPending}</span>
           </div>
           <div className="divide-y divide-border/50">
+            {/* 项目移交申请 */}
+            {pendingTransfers.map(req => (
+              <div key={req.id} className="px-4 py-3 hover:bg-accent/30 transition-colors">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className="px-1.5 py-0.5 bg-purple-500/20 text-purple-400 text-[10px] rounded font-medium">项目移交</span>
+                      <span className="text-xs font-medium text-foreground truncate">{req.projectName}</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">{req.fromPM} → {req.toPM}</div>
+                    {req.reason && <div className="text-[10px] text-muted-foreground mt-0.5 truncate">交接原因：{req.reason}</div>}
+                    <div className="text-[10px] text-muted-foreground mt-0.5">申请时间：{req.createdAt}</div>
+                  </div>
+                  <div className="flex gap-1.5 ml-2 shrink-0">
+                    <button
+                      onClick={() => approveRequest(req.id)}
+                      className="px-2.5 py-1 bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 rounded text-[10px] hover:bg-emerald-600/30 transition-colors"
+                    >通过</button>
+                    <button
+                      onClick={() => rejectRequest(req.id)}
+                      className="px-2.5 py-1 bg-red-600/20 text-red-400 border border-red-500/30 rounded text-[10px] hover:bg-red-600/30 transition-colors"
+                    >驳回</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {/* 发票审批 */}
             <div className="px-4 py-3 hover:bg-accent/30 transition-colors">
               <div className="flex items-start justify-between">
                 <div>

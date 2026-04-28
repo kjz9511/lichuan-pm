@@ -8,6 +8,7 @@ import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import { RoleProvider, useRole, Role } from "./contexts/RoleContext";
 import { ContractProvider, useContracts } from "./contexts/ContractContext";
+import { TransferProvider } from "./contexts/TransferContext";
 import { Contract } from "./lib/mockData";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -107,10 +108,12 @@ function App() {
       <ThemeProvider defaultTheme="dark">
         <RoleProvider>
           <ContractProvider>
+            <TransferProvider>
             <TooltipProvider>
               <Toaster />
               <MainApp />
             </TooltipProvider>
+            </TransferProvider>
           </ContractProvider>
         </RoleProvider>
       </ThemeProvider>

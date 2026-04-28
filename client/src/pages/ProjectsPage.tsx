@@ -19,6 +19,8 @@ import { useState } from 'react';
 import { projects as initialProjects, Project, Contract } from '../lib/mockData';
 import { toast } from 'sonner';
 import { useContracts } from '../contexts/ContractContext';
+import { useRole } from '../contexts/RoleContext';
+import { useTransfer } from '../contexts/TransferContext';
 import ProjectStagePage from './ProjectStagePage';
 
 function HealthBadge({ health }: { health: 'green' | 'yellow' | 'red' }) {
@@ -372,15 +374,15 @@ const PM_LIST = [
 // 移交项目经理弹窗
 function TransferPMModal({
   project, onClose, onTransfer,
-}: { project: Project; onClose: () => void; onTransfer: (newManager: string) => void; }) {
+}: { project: Project; onClose: () => void; onTransfer: (newManager: string, reason: string) => void; }) {
   const [selected, setSelected] = useState('');
   const [reason, setReason] = useState('');
   const available = PM_LIST.filter(p => p.name !== project.manager);
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!selected) { toast.error('请选择新的项目经理'); return; }
-    onTransfer(selected);
-    toast.success(`项目「${project.name}」已移交给 ${selected}`);
+    onTransfer(selected, reason);
+    toast.success(`移交申请已提交，等待老板审批`);
     onClose();
   }
   return (
@@ -450,20 +452,22 @@ export default function ProjectsPage({ onNewProject }: ProjectsPageProps) {
   const [stageProjectId, setStageProjectId] = useState<string | null>(null);
   const [subContractProject, setSubContractProject] = useState<Project | null>(null);
   const [transferProject, setTransferProject] = useState<Project | null>(null);
-  // 项目列表用 state 管理，支持移交 PM 后实时更新
   const [projectList, setProjectList] = useState<Project[]>(initialProjects);
   const { addContract } = useContracts();
+  const { role, roleInfo } = useRole();
+  const { addRequest, requests } = useTransfer();
 
-  function handleTransfer(projectId: string, newManager: string) {
-    setProjectList(list => list.map(p => p.id === projectId ? { ...p, manager: newManager } : p));
-  }
+  // 老板看全部项目，PM 只看自己负责的
+  const visibleProjects = role === 'pm'
+    ? projectList.filter(p => p.manager === roleInfo.name)
+    : projectList;
 
   // 进入阶段子流程页面
   if (stageProjectId) {
     return <ProjectStagePage projectId={stageProjectId} onBack={() => setStageProjectId(null)} canApprove={true} />;
   }
 
-  const filtered = projectList.filter(p => {
+  const filtered = visibleProjects.filter(p => {
     const matchSearch = p.name.includes(search) || p.id.includes(search) || p.manager.includes(search);
     const matchHealth = filterHealth === 'all' || p.health === filterHealth;
     return matchSearch && matchHealth;
@@ -608,8 +612,14 @@ export default function ProjectsPage({ onNewProject }: ProjectsPageProps) {
         <TransferPMModal
           project={transferProject}
           onClose={() => setTransferProject(null)}
-          onTransfer={newManager => {
-            handleTransfer(transferProject.id, newManager);
+          onTransfer={(newManager, reason) => {
+            addRequest({
+              projectId: transferProject.id,
+              projectName: transferProject.name,
+              fromPM: transferProject.manager,
+              toPM: newManager,
+              reason,
+            });
             setTransferProject(null);
           }}
         />
