@@ -1,5 +1,5 @@
 // 设计风格：深色专业管理台风 - 项目阶段子流程页
-// 五阶段：项目启动/需求确认/项目执行/项目验收/项目结项
+// 五阶段：项目启动/需求确认/项目上线/项目验收/项目结项
 // 每阶段弹出填写表单，阶段证明文件必填，其他关键文件选填，提交即保存（无需审批）
 
 import { useState } from 'react';
@@ -47,7 +47,7 @@ const STAGES: StageConfig[] = [
     description: '与甲方确认需求，输出需求规格说明书并双方签字确认',
   },
   {
-    id: 'execution', name: '项目执行', icon: Code2,
+    id: 'execution', name: '项目上线', icon: Code2,
     color: 'text-green-400', bgColor: 'bg-green-500/10', borderColor: 'border-green-500/30',
     proofLabel: '上线阶段证明',
     optionalFiles: ['上线部署记录', '测试报告'],

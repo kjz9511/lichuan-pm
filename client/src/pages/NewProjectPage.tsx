@@ -482,6 +482,7 @@ export default function NewProjectPage({ onBack }: NewProjectPageProps) {
   const [step, setStep] = useState(1);
   const [pmConfirmed, setPmConfirmed] = useState(false);
   const [done, setDone] = useState(false);
+  const [jumpTimer, setJumpTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
 
   const [step1, setStep1] = useState<Step1Data>({
     name: '', type: '', manager: '张伟', startDate: '', endDate: '', budget: '', description: '', members: []
@@ -518,7 +519,13 @@ export default function NewProjectPage({ onBack }: NewProjectPageProps) {
   const handleSign = () => {
     setDone(true);
     toast.success(`项目「${step1.name}」已正式立项！`);
-    setTimeout(() => navigate('/projects'), 2000);
+    const t = setTimeout(() => navigate('/projects'), 4000);
+    setJumpTimer(t);
+  };
+
+  const handleGoNow = () => {
+    if (jumpTimer) clearTimeout(jumpTimer);
+    navigate('/projects');
   };
 
   if (done) {
@@ -529,7 +536,22 @@ export default function NewProjectPage({ onBack }: NewProjectPageProps) {
         </div>
         <h2 className="text-xl font-semibold text-slate-100 mb-2">立项成功！</h2>
         <p className="text-slate-400 text-sm mb-1">项目「{step1.name}」已正式立项</p>
-        <p className="text-slate-500 text-xs">正在跳转至项目台账...</p>
+        <p className="text-slate-500 text-xs mb-6">4 秒后自动跳转至项目台账</p>
+        <div className="flex gap-3">
+          <Button
+            onClick={handleGoNow}
+            className="bg-green-600 hover:bg-green-700 text-white gap-2"
+          >
+            <ArrowLeft className="w-4 h-4" /> 立即前往项目台账
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => { if (jumpTimer) { clearTimeout(jumpTimer); setJumpTimer(null); } }}
+            className="border-slate-600 text-slate-400 hover:bg-slate-800"
+          >
+            留在此页
+          </Button>
+        </div>
       </div>
     );
   }
