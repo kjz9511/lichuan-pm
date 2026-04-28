@@ -475,9 +475,13 @@ function Step5({ projectData, contractData, onSign }:
 }
 
 // ── 主页面 ──────────────────────────────────────────────────
-interface NewProjectPageProps { onBack?: () => void; }
+import type { Contract } from '../lib/mockData';
+interface NewProjectPageProps {
+  onBack?: () => void;
+  onContractCreated?: (c: Contract) => void;
+}
 
-export default function NewProjectPage({ onBack }: NewProjectPageProps) {
+export default function NewProjectPage({ onBack, onContractCreated }: NewProjectPageProps) {
   const [, navigate] = useLocation();
   const [step, setStep] = useState(1);
   const [pmConfirmed, setPmConfirmed] = useState(false);
@@ -519,6 +523,36 @@ export default function NewProjectPage({ onBack }: NewProjectPageProps) {
   const handleSign = () => {
     setDone(true);
     toast.success(`项目「${step1.name}」已正式立项！`);
+    // 立项完成 → 自动将甲方合同写入合同台账
+    if (onContractCreated && step2.contractName && step2.client && step2.amount) {
+      const now = new Date().toISOString().slice(0, 10);
+      const uid = String(Date.now()).slice(-4);
+      const newContract: Contract = {
+        id: `CON-NEW-${uid}`,
+        contractNo: step2.contractNo || `HT-${new Date().getFullYear()}-${uid}`,
+        contractName: step2.contractName,
+        contractInfo: step2.contractInfo || '',
+        remark: step2.remark || '',
+        projectId: `PRJ-NEW-${uid}`,
+        projectName: step1.name,
+        type: '甲方合同',
+        vendor: step2.client,
+        amount: Number(step2.amount),
+        signDate: step2.signDate || now,
+        startDate: step2.startDate || step1.startDate,
+        endDate: step2.endDate || step1.endDate,
+        status: '待签署',
+        paidAmount: 0,
+        pendingAmount: Number(step2.amount),
+        stages: step2.stages.map(s => ({
+          name: s.name,
+          amount: Number(s.amount) || 0,
+          dueDate: s.dueDate,
+          status: '未回款' as const,
+        })),
+      };
+      onContractCreated(newContract);
+    }
     const t = setTimeout(() => navigate('/projects'), 4000);
     setJumpTimer(t);
   };

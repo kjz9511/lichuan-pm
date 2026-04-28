@@ -1,19 +1,23 @@
 // 厉川外包项目管理平台 — 项目台账页面
 // 设计风格：深色专业管理台风，项目列表 + 详情弹窗
+// 逻辑：项目卡片支持「阶段流程」和「发起外协合同」两个快捷操作
 
 import { cn } from '@/lib/utils';
 import {
   AlertTriangle,
   CheckCircle2,
   ChevronRight,
+  FileText,
   GitBranch,
   Plus,
   Search,
+  X,
   XCircle,
 } from 'lucide-react';
 import { useState } from 'react';
-import { projects, Project } from '../lib/mockData';
+import { projects, Project, Contract } from '../lib/mockData';
 import { toast } from 'sonner';
+import { useContracts } from '../contexts/ContractContext';
 import ProjectStagePage from './ProjectStagePage';
 
 function HealthBadge({ health }: { health: 'green' | 'yellow' | 'red' }) {
@@ -34,11 +38,10 @@ function HealthBadge({ health }: { health: 'green' | 'yellow' | 'red' }) {
   );
 }
 
-const STAGES = ['项目启动', '需求确认', '项目执行', '项目验收', '项目结项'];
+const STAGES = ['项目启动', '需求确认', '项目上线', '项目验收', '项目结项'];
 
 function ProjectDetailModal({ project, onClose }: { project: Project; onClose: () => void }) {
   const stageIndex = STAGES.indexOf(project.stage);
-
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div
@@ -52,7 +55,6 @@ function ProjectDetailModal({ project, onClose }: { project: Project; onClose: (
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors text-xl leading-none">×</button>
         </div>
-
         <div className="p-6 space-y-5">
           {/* 阶段进度 */}
           <div>
@@ -84,7 +86,6 @@ function ProjectDetailModal({ project, onClose }: { project: Project; onClose: (
               ))}
             </div>
           </div>
-
           {/* 基本信息 */}
           <div className="grid grid-cols-2 gap-3">
             {[
@@ -101,7 +102,6 @@ function ProjectDetailModal({ project, onClose }: { project: Project; onClose: (
               </div>
             ))}
           </div>
-
           {/* 进度 */}
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -119,7 +119,6 @@ function ProjectDetailModal({ project, onClose }: { project: Project; onClose: (
               />
             </div>
           </div>
-
           {/* 合同回款 */}
           <div>
             <div className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">合同回款</div>
@@ -140,7 +139,6 @@ function ProjectDetailModal({ project, onClose }: { project: Project; onClose: (
               </div>
             </div>
           </div>
-
           {/* 项目成员 */}
           <div>
             <div className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">项目成员</div>
@@ -150,7 +148,6 @@ function ProjectDetailModal({ project, onClose }: { project: Project; onClose: (
               ))}
             </div>
           </div>
-
           {/* 项目简介 */}
           <div>
             <div className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">项目简介</div>
@@ -162,6 +159,210 @@ function ProjectDetailModal({ project, onClose }: { project: Project; onClose: (
   );
 }
 
+// ── 发起外协合同弹窗（项目内快速录入）────────────────────────────────
+function SubContractModal({ project, onClose, onSave }: {
+  project: Project;
+  onClose: () => void;
+  onSave: (c: Contract) => void;
+}) {
+  const { contracts } = useContracts();
+  const mainContract = contracts.find(c => c.projectId === project.id && c.type === '甲方合同');
+
+  const [form, setForm] = useState({
+    contractName: '',
+    vendor: '',
+    amount: '',
+    signDate: '',
+    endDate: '',
+    remark: '',
+    payMethod: '银行转账',
+    payAccount: '',
+    stages: [{ name: '预付款', amount: '', dueDate: '' }],
+  });
+
+  const PAY_METHODS = [
+    { value: '银行转账', icon: '🏦' },
+    { value: '支付宝', icon: '💙' },
+    { value: '微信', icon: '💚' },
+    { value: '直接打账', icon: '💰' },
+  ];
+
+  function handleSave() {
+    if (!form.contractName || !form.vendor || !form.amount) {
+      toast.error('请填写合同名称、外协方和金额');
+      return;
+    }
+    const uid = String(Date.now()).slice(-4);
+    const now = new Date().toISOString().slice(0, 10);
+    const newContract: Contract = {
+      id: `CON-SUB-${uid}`,
+      contractNo: `WX-${new Date().getFullYear()}-${uid}`,
+      contractName: form.contractName,
+      contractInfo: `${project.name} 外协分包合同`,
+      remark: form.remark,
+      projectId: project.id,
+      projectName: project.name,
+      type: '外包协议',
+      vendor: form.vendor,
+      amount: Number(form.amount),
+      signDate: form.signDate || now,
+      startDate: now,
+      endDate: form.endDate || project.endDate,
+      status: '待签署',
+      paidAmount: 0,
+      pendingAmount: Number(form.amount),
+      parentContractId: mainContract?.id,
+      stages: form.stages.map(s => ({
+        name: s.name,
+        amount: Number(s.amount) || 0,
+        dueDate: s.dueDate,
+        status: '未回款' as const,
+      })),
+    };
+    onSave(newContract);
+    toast.success(`外协合同「${form.contractName}」已创建，等待签署`);
+    onClose();
+  }
+
+  const inputCls = 'w-full h-9 px-3 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-card border border-border rounded-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="sticky top-0 bg-card border-b border-border px-5 py-4 flex items-center justify-between z-10">
+          <div>
+            <div className="text-base font-bold text-foreground">发起外协合同</div>
+            <div className="text-xs text-muted-foreground mt-0.5">{project.name} · {project.id}</div>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-accent transition-colors">
+            <X className="w-4 h-4 text-muted-foreground" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {/* 关联主合同提示 */}
+          {mainContract ? (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-400">
+              <FileText className="w-3.5 h-3.5 shrink-0" />
+              关联主合同：{mainContract.contractName}（¥{(mainContract.amount / 10000).toFixed(0)}万）
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              该项目暂无甲方合同，外协合同将独立存在
+            </div>
+          )}
+
+          {/* 基本字段 */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className="text-xs font-medium text-foreground mb-1.5 block">外协合同名称 <span className="text-red-400">*</span></label>
+              <input value={form.contractName} onChange={e => setForm(f => ({ ...f, contractName: e.target.value }))}
+                placeholder="如：XX系统前端开发外协协议"
+                className={inputCls} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-foreground mb-1.5 block">外协方 <span className="text-red-400">*</span></label>
+              <input value={form.vendor} onChange={e => setForm(f => ({ ...f, vendor: e.target.value }))}
+                placeholder="供应商名称或个人姓名"
+                className={inputCls} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-foreground mb-1.5 block">合同金额（元）<span className="text-red-400">*</span></label>
+              <input type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
+                placeholder="如 80000"
+                className={inputCls} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-foreground mb-1.5 block">签订日期</label>
+              <input type="date" value={form.signDate} onChange={e => setForm(f => ({ ...f, signDate: e.target.value }))}
+                className={inputCls} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-foreground mb-1.5 block">结束日期</label>
+              <input type="date" value={form.endDate} onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))}
+                className={inputCls} />
+            </div>
+          </div>
+
+          {/* 付款方式 */}
+          <div>
+            <label className="text-xs font-medium text-foreground mb-2 block">付款方式</label>
+            <div className="flex gap-2 flex-wrap">
+              {PAY_METHODS.map(m => (
+                <button key={m.value} type="button"
+                  onClick={() => setForm(f => ({ ...f, payMethod: m.value }))}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border transition-all',
+                    form.payMethod === m.value
+                      ? 'bg-blue-600/20 text-blue-400 border-blue-500/40'
+                      : 'text-muted-foreground border-border hover:border-muted-foreground'
+                  )}>
+                  <span>{m.icon}</span>{m.value}
+                </button>
+              ))}
+            </div>
+            {form.payMethod !== '直接打账' && (
+              <input value={form.payAccount} onChange={e => setForm(f => ({ ...f, payAccount: e.target.value }))}
+                placeholder={form.payMethod === '银行转账' ? '收款账号（银行卡号）' : `${form.payMethod}账号`}
+                className="mt-2 w-full h-9 px-3 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
+            )}
+          </div>
+
+          {/* 付款节点 */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-medium text-foreground">付款节点</label>
+              <button type="button"
+                onClick={() => setForm(f => ({ ...f, stages: [...f.stages, { name: '', amount: '', dueDate: '' }] }))}
+                className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1">
+                <Plus className="w-3 h-3" />添加节点
+              </button>
+            </div>
+            <div className="space-y-2">
+              {form.stages.map((s, i) => (
+                <div key={i} className="grid grid-cols-12 gap-2 items-center">
+                  <input value={s.name}
+                    onChange={e => setForm(f => ({ ...f, stages: f.stages.map((st, idx) => idx === i ? { ...st, name: e.target.value } : st) }))}
+                    placeholder="节点名称"
+                    className="col-span-4 h-8 px-2 bg-input border border-border rounded text-xs text-foreground placeholder:text-muted-foreground focus:outline-none" />
+                  <input type="number" value={s.amount}
+                    onChange={e => setForm(f => ({ ...f, stages: f.stages.map((st, idx) => idx === i ? { ...st, amount: e.target.value } : st) }))}
+                    placeholder="金额"
+                    className="col-span-3 h-8 px-2 bg-input border border-border rounded text-xs text-foreground placeholder:text-muted-foreground focus:outline-none" />
+                  <input type="date" value={s.dueDate}
+                    onChange={e => setForm(f => ({ ...f, stages: f.stages.map((st, idx) => idx === i ? { ...st, dueDate: e.target.value } : st) }))}
+                    className="col-span-4 h-8 px-2 bg-input border border-border rounded text-xs text-foreground focus:outline-none" />
+                  <button type="button"
+                    onClick={() => setForm(f => ({ ...f, stages: f.stages.filter((_, idx) => idx !== i) }))}
+                    className="col-span-1 text-muted-foreground hover:text-red-400 flex justify-center">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 备注 */}
+          <div>
+            <label className="text-xs font-medium text-foreground mb-1.5 block">备注</label>
+            <textarea value={form.remark} onChange={e => setForm(f => ({ ...f, remark: e.target.value }))}
+              placeholder="合同备注、注意事项等..." rows={2}
+              className="w-full px-3 py-2 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none" />
+          </div>
+        </div>
+
+        <div className="px-5 pb-5 flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-accent transition-colors">取消</button>
+          <button onClick={handleSave} className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium transition-colors">创建外协合同</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 主页面 ────────────────────────────────────────────────────
 interface ProjectsPageProps {
   onNewProject?: () => void;
 }
@@ -171,6 +372,8 @@ export default function ProjectsPage({ onNewProject }: ProjectsPageProps) {
   const [filterHealth, setFilterHealth] = useState<string>('all');
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [stageProjectId, setStageProjectId] = useState<string | null>(null);
+  const [subContractProject, setSubContractProject] = useState<Project | null>(null);
+  const { addContract } = useContracts();
 
   // 进入阶段子流程页面
   if (stageProjectId) {
@@ -197,7 +400,6 @@ export default function ProjectsPage({ onNewProject }: ProjectsPageProps) {
             className="w-full h-8 pl-8 pr-3 text-xs bg-input border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
-
         <div className="flex items-center gap-1.5">
           {[
             { value: 'all', label: '全部' },
@@ -219,7 +421,6 @@ export default function ProjectsPage({ onNewProject }: ProjectsPageProps) {
             </button>
           ))}
         </div>
-
         <button
           onClick={() => onNewProject?.()}
           className="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-md transition-colors"
@@ -250,7 +451,6 @@ export default function ProjectsPage({ onNewProject }: ProjectsPageProps) {
                   )}>{p.status}</span>
                 </div>
                 <div className="text-xs text-muted-foreground mb-3">{p.id} · {p.client} · PM: {p.manager} · 外包: {p.vendor}</div>
-
                 {/* 进度条 */}
                 <div className="flex items-center gap-3">
                   <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
@@ -276,6 +476,7 @@ export default function ProjectsPage({ onNewProject }: ProjectsPageProps) {
                 <div className="text-[10px] text-emerald-400">已回 ¥{(p.paidAmount / 10000).toFixed(0)}万</div>
               </div>
 
+              {/* 操作按钮 */}
               <div className="flex flex-col gap-1.5 shrink-0">
                 <ChevronRight className="w-4 h-4 text-muted-foreground" />
                 <button
@@ -284,6 +485,13 @@ export default function ProjectsPage({ onNewProject }: ProjectsPageProps) {
                 >
                   <GitBranch className="w-2.5 h-2.5" />
                   阶段流程
+                </button>
+                <button
+                  onClick={e => { e.stopPropagation(); setSubContractProject(p); }}
+                  className="flex items-center gap-1 px-2 py-1 bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/30 rounded text-[10px] font-medium transition-colors"
+                >
+                  <Plus className="w-2.5 h-2.5" />
+                  外协合同
                 </button>
               </div>
             </div>
@@ -299,6 +507,13 @@ export default function ProjectsPage({ onNewProject }: ProjectsPageProps) {
 
       {selectedProject && (
         <ProjectDetailModal project={selectedProject} onClose={() => setSelectedProject(null)} />
+      )}
+      {subContractProject && (
+        <SubContractModal
+          project={subContractProject}
+          onClose={() => setSubContractProject(null)}
+          onSave={c => { addContract(c); setSubContractProject(null); }}
+        />
       )}
     </div>
   );

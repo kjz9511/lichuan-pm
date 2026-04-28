@@ -17,7 +17,8 @@ import {
   X,
 } from 'lucide-react';
 import { useState } from 'react';
-import { contracts, Contract, projects } from '../lib/mockData';
+import { Contract, contracts as mockContracts, projects } from '../lib/mockData';
+import { useContracts } from '../contexts/ContractContext';
 import { toast } from 'sonner';
 import { useAI } from '@/hooks/useAI';
 
@@ -255,7 +256,7 @@ function ContractFormModal({
   });
 
   // 主合同列表（供外协合同关联）
-  const mainContracts = contracts.filter(c => c.type === '甲方合同');
+  const mainContracts = mockContracts.filter((c: Contract) => c.type === '甲方合同');
 
   function addStage() {
     setForm(f => ({ ...f, stages: [...f.stages, { name: '', amount: '', dueDate: '' }] }));
@@ -556,19 +557,17 @@ function ContractFormModal({
   );
 }
 
-// ─── 主页面 ────────────────────────────────────────────────────
+// ─── 主页面 ────────────────────────────────────────────
+// 只读汇总视角：老板看全局合同状态，财务看付款情况
+// 甲方合同由立项流程自动写入，外协合同由 PM 在项目台账发起
 export default function ContractsPage() {
   const [filterType, setFilterType] = useState<string>('all');
-  const [showForm, setShowForm] = useState(false);
-  const [defaultFormType, setDefaultFormType] = useState<ContractType>('甲方合同');
+  // 从全局 Context 获取合同列表（包含立项自动写入的甲方合同 + PM 发起的外协合同）
+  const { contracts } = useContracts();
 
   // 按项目分组，主合同在前，外协合同挂靠
   const mainContracts = contracts.filter(c => c.type === '甲方合同');
   const subContracts = contracts.filter(c => c.type === '外包协议');
-
-  // 过滤
-  const filteredMain = mainContracts.filter(() => filterType === 'all' || filterType === '甲方合同');
-  const filteredSub = subContracts.filter(() => filterType === 'all' || filterType === '外协合同');
 
   // 统计
   const totalMain = mainContracts.reduce((s, c) => s + c.amount, 0);
@@ -583,14 +582,7 @@ export default function ContractsPage() {
     if (filterType === '甲方合同') return hasMain;
     if (filterType === '外协合同') return hasSub;
     return hasMain || hasSub;
-  });
-
-  function openForm(type: ContractType) {
-    setDefaultFormType(type);
-    setShowForm(true);
-  }
-
-  return (
+  });  return (
     <div className="p-6 space-y-5">
       {/* 统计卡片 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -638,21 +630,9 @@ export default function ContractsPage() {
             </button>
           ))}
         </div>
-        <div className="ml-auto flex items-center gap-2">
-          <button
-            onClick={() => openForm('甲方合同')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-md transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            录入甲方合同
-          </button>
-          <button
-            onClick={() => openForm('外协合同')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs rounded-md transition-colors"
-          >
-            <GitBranch className="w-3.5 h-3.5" />
-            录入外协合同
-          </button>
+        <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
+          <Building2 className="w-3.5 h-3.5" />
+          甲方合同由立项自动写入 · 外协合同在项目台账发起
         </div>
       </div>
 
@@ -707,13 +687,6 @@ export default function ContractsPage() {
         })}
       </div>
 
-      {/* 录入合同弹窗 */}
-      {showForm && (
-        <ContractFormModal
-          onClose={() => setShowForm(false)}
-          defaultType={defaultFormType}
-        />
-      )}
     </div>
   );
 }

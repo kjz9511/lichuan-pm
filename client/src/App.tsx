@@ -7,6 +7,8 @@ import { useState } from "react";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import { RoleProvider, useRole, Role } from "./contexts/RoleContext";
+import { ContractProvider, useContracts } from "./contexts/ContractContext";
+import { Contract } from "./lib/mockData";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import ErrorBoundary from "./components/ErrorBoundary";
 
@@ -29,6 +31,7 @@ function MainApp() {
   const [activePage, setActivePage] = useState('dashboard');
   const [showNewProject, setShowNewProject] = useState(false);
   const { role, setRole } = useRole();
+  const { addContract } = useContracts();
 
   function handleLogin(selectedRole: Role) {
     setRole(selectedRole);
@@ -46,7 +49,10 @@ function MainApp() {
 
   function renderPage() {
     if (showNewProject) {
-      return <NewProjectPage onBack={() => setShowNewProject(false)} />;
+      return <NewProjectPage
+        onBack={() => setShowNewProject(false)}
+        onContractCreated={(c: Contract) => { addContract(c); }}
+      />;
     }
     switch (activePage) {
       case 'dashboard':
@@ -100,10 +106,12 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider defaultTheme="dark">
         <RoleProvider>
-          <TooltipProvider>
-            <Toaster />
-            <MainApp />
-          </TooltipProvider>
+          <ContractProvider>
+            <TooltipProvider>
+              <Toaster />
+              <MainApp />
+            </TooltipProvider>
+          </ContractProvider>
         </RoleProvider>
       </ThemeProvider>
     </ErrorBoundary>
