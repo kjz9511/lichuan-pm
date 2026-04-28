@@ -108,30 +108,49 @@ function initRecords(currentStage: number): StageRecord[] {
 }
 
 // ── 阶段表单弹窗 ────────────────────────────────────────────
+// 合并上线阶段的文件配置（精简模式「需求确认」合并时使用）
+const GOLIVE_EXTRA_FILES = ['上线部署记录', '测试报告', '验收确认书'];
+
 interface StageFormProps {
   open: boolean;
   onClose: () => void;
   stage: StageConfig;
   record: StageRecord;
-  onSave: (r: StageRecord) => void;
+  onSave: (r: StageRecord, mergeGoLive?: boolean) => void;
+  // 是否允许合并上线（精简模式需求确认阶段专用）
+  canMergeGoLive?: boolean;
 }
-function StageFormDialog({ open, onClose, stage, record, onSave }: StageFormProps) {
+function StageFormDialog({ open, onClose, stage, record, onSave, canMergeGoLive }: StageFormProps) {
   const [proofFile, setProofFile] = useState(record.proofFile || '');
   const [optFiles, setOptFiles] = useState<Record<string, string>>(record.optionalFiles || {});
   const [remark, setRemark] = useState(record.remark || '');
+  // 合并上线开关
+  const [mergeGoLive, setMergeGoLive] = useState(false);
+  const [goLiveProof, setGoLiveProof] = useState('');
+  const [goLiveOptFiles, setGoLiveOptFiles] = useState<Record<string, string>>({});
 
-  const handleFileUpload = (key: string, required: boolean) => {
+  const handleFileUpload = (key: string, required: boolean, isGoLive = false) => {
+    const prefix = isGoLive ? '系统上线' : stage.name;
     const fileName = required
-      ? `${stage.name}_${stage.proofLabel}_双方盖章.pdf`
-      : `${stage.name}_${key}.pdf`;
-    if (required) setProofFile(fileName);
-    else setOptFiles(prev => ({ ...prev, [key]: fileName }));
+      ? `${prefix}_${isGoLive ? '上线阶段证明' : stage.proofLabel}_双方盖章.pdf`
+      : `${prefix}_${key}.pdf`;
+    if (isGoLive) {
+      if (required) setGoLiveProof(fileName);
+      else setGoLiveOptFiles(prev => ({ ...prev, [key]: fileName }));
+    } else {
+      if (required) setProofFile(fileName);
+      else setOptFiles(prev => ({ ...prev, [key]: fileName }));
+    }
     toast.success(`文件「${fileName}」已上传`);
   };
 
   const handleSave = () => {
     if (!proofFile) {
       toast.error(`请上传「${stage.proofLabel}」（必填）`);
+      return;
+    }
+    if (mergeGoLive && !goLiveProof) {
+      toast.error('已开启合并上线，请上传「上线阶段证明」（必填）');
       return;
     }
     const now = new Date().toISOString().slice(0, 10);
@@ -142,14 +161,50 @@ function StageFormDialog({ open, onClose, stage, record, onSave }: StageFormProp
       remark,
       status: 'done',
       submitDate: now,
-    });
-    toast.success(`${stage.name}阶段已完成，资料已保存`);
+    }, mergeGoLive ? true : false);
+    // 如果合并上线，把上线资料也存入 record（通过 onSave 的第二个参数通知父组件）
+    if (mergeGoLive) {
+      toast.success('需求确认 + 系统上线资料已一并提交，两个阶段同时完成！');
+    } else {
+      toast.success(`${stage.name}阶段已完成，资料已保存`);
+    }
     onClose();
   };
 
   const handleDownload = (fileName: string) => {
     toast.info(`正在下载模板「${fileName}」...`);
   };
+
+  // 文件上传区块（复用）
+  const FileBlock = ({ label, file, onUpload, onRemove, required, isGoLive = false }: {
+    label: string; file: string; onUpload: () => void; onRemove: () => void; required: boolean; isGoLive?: boolean;
+  }) => (
+    <div className={`rounded-lg border p-3 ${required ? (isGoLive ? 'border-green-500/30 bg-green-500/5' : `${stage.borderColor} ${stage.bgColor}`) : 'border-slate-700/50 bg-slate-800/40'}`}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <FileText className={`w-3.5 h-3.5 ${required ? (isGoLive ? 'text-green-400' : stage.color) : 'text-slate-500'}`} />
+          <span className="text-sm text-slate-300">{label}</span>
+          {required && <Badge className="text-xs bg-red-500/20 text-red-300 border-0">必填</Badge>}
+        </div>
+        <Button size="sm" variant="outline" onClick={() => handleDownload(`${label}模板.docx`)}
+          className="border-slate-700 text-slate-500 hover:text-slate-300 h-6 text-xs gap-1">
+          <Download className="w-3 h-3" /> 模板
+        </Button>
+      </div>
+      {file ? (
+        <div className="flex items-center gap-2 p-2 rounded bg-slate-800/60 border border-slate-700">
+          <CheckCircle2 className="w-3.5 h-3.5 text-green-400 shrink-0" />
+          <span className="text-xs text-slate-400 flex-1 truncate">{file}</span>
+          <button onClick={onRemove} className="text-xs text-slate-500 hover:text-red-400">移除</button>
+        </div>
+      ) : (
+        <button onClick={onUpload}
+          className="w-full flex items-center justify-center gap-1.5 p-2.5 rounded border border-dashed border-slate-600 hover:border-slate-500 text-slate-500 hover:text-slate-400 transition-colors text-xs">
+          <Upload className="w-3.5 h-3.5" /> 点击上传 {label}
+        </button>
+      )}
+    </div>
+  );
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
@@ -160,81 +215,85 @@ function StageFormDialog({ open, onClose, stage, record, onSave }: StageFormProp
               <stage.icon className={`w-5 h-5 ${stage.color}`} />
             </div>
             <div>
-              <DialogTitle className="text-slate-100">{stage.name} — 阶段资料填报</DialogTitle>
+              <DialogTitle className="text-slate-100">
+                {stage.name}{mergeGoLive ? ' + 系统上线' : ''} — 阶段资料填报
+              </DialogTitle>
               <p className="text-xs text-slate-500 mt-0.5">{stage.description}</p>
             </div>
           </div>
         </DialogHeader>
 
-        <div className="space-y-6 py-2">
-          {/* 必填：阶段证明文件 */}
-          <div className={`rounded-xl border ${stage.borderColor} ${stage.bgColor} p-4`}>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <FileText className={`w-4 h-4 ${stage.color}`} />
-                <span className="text-sm font-medium text-slate-200">{stage.proofLabel}</span>
-                <Badge className="text-xs bg-red-500/20 text-red-300 border-0">必填</Badge>
+        <div className="space-y-5 py-2">
+          {/* 合并上线开关（仅精简模式需求确认阶段显示） */}
+          {canMergeGoLive && (
+            <div className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
+              mergeGoLive ? 'border-green-500/40 bg-green-500/8' : 'border-slate-700 bg-slate-800/40'
+            }`}>
+              <div className="flex items-center gap-2.5">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                  mergeGoLive ? 'bg-green-500/20' : 'bg-slate-700'
+                }`}>
+                  <Code2 className={`w-4 h-4 ${mergeGoLive ? 'text-green-400' : 'text-slate-500'}`} />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-200">合并系统上线资料</p>
+                  <p className="text-xs text-slate-500">需求确认与上线一并提交，两个阶段同时完成</p>
+                </div>
               </div>
-              <Button size="sm" variant="outline" onClick={() => handleDownload(`${stage.proofLabel}模板.docx`)}
-                className="border-slate-600 text-slate-400 hover:text-slate-200 h-7 text-xs gap-1">
-                <Download className="w-3 h-3" /> 下载模板
-              </Button>
-            </div>
-            {proofFile ? (
-              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-800/60 border border-slate-700">
-                <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
-                <span className="text-sm text-slate-300 flex-1 truncate">{proofFile}</span>
-                <button onClick={() => setProofFile('')} className="text-xs text-slate-500 hover:text-red-400">移除</button>
-              </div>
-            ) : (
               <button
-                onClick={() => handleFileUpload(stage.proofLabel, true)}
-                className="w-full flex items-center justify-center gap-2 p-3 rounded-lg border border-dashed border-slate-600 hover:border-slate-500 text-slate-500 hover:text-slate-400 transition-colors text-sm"
+                onClick={() => setMergeGoLive(v => !v)}
+                className={`relative w-11 h-6 rounded-full transition-colors ${
+                  mergeGoLive ? 'bg-green-500' : 'bg-slate-600'
+                }`}
               >
-                <Upload className="w-4 h-4" />
-                点击上传双方盖章的{stage.proofLabel}
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                  mergeGoLive ? 'translate-x-5' : 'translate-x-0'
+                }`} />
               </button>
+            </div>
+          )}
+
+          {/* ── 需求确认资料 ── */}
+          <div className="space-y-3">
+            {(mergeGoLive) && (
+              <p className="text-xs font-semibold text-purple-400 uppercase tracking-wider">需求确认资料</p>
             )}
+            <FileBlock
+              label={stage.proofLabel} file={proofFile} required
+              onUpload={() => handleFileUpload(stage.proofLabel, true)}
+              onRemove={() => setProofFile('')}
+            />
+            {stage.optionalFiles.map(fileName => (
+              <FileBlock
+                key={fileName} label={fileName} file={optFiles[fileName] || ''} required={false}
+                onUpload={() => handleFileUpload(fileName, false)}
+                onRemove={() => setOptFiles(p => { const n = {...p}; delete n[fileName]; return n; })}
+              />
+            ))}
           </div>
 
-          {/* 选填：关键文件 */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-sm font-medium text-slate-300">关键文件</span>
-              <Badge className="text-xs bg-slate-700/60 text-slate-400 border-0">选填</Badge>
-            </div>
+          {/* ── 系统上线资料（合并模式） ── */}
+          {mergeGoLive && (
             <div className="space-y-3">
-              {stage.optionalFiles.map(fileName => (
-                <div key={fileName} className="rounded-lg border border-slate-700/50 bg-slate-800/40 p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-3.5 h-3.5 text-slate-500" />
-                      <span className="text-sm text-slate-300">{fileName}</span>
-                    </div>
-                    <Button size="sm" variant="outline" onClick={() => handleDownload(`${fileName}模板.docx`)}
-                      className="border-slate-700 text-slate-500 hover:text-slate-300 h-6 text-xs gap-1">
-                      <Download className="w-3 h-3" /> 模板
-                    </Button>
-                  </div>
-                  {optFiles[fileName] ? (
-                    <div className="flex items-center gap-2 p-2 rounded bg-slate-800/60 border border-slate-700">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-green-400 shrink-0" />
-                      <span className="text-xs text-slate-400 flex-1 truncate">{optFiles[fileName]}</span>
-                      <button onClick={() => setOptFiles(p => { const n = {...p}; delete n[fileName]; return n; })}
-                        className="text-xs text-slate-500 hover:text-red-400">移除</button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => handleFileUpload(fileName, false)}
-                      className="w-full flex items-center justify-center gap-1.5 p-2 rounded border border-dashed border-slate-700 hover:border-slate-600 text-slate-600 hover:text-slate-500 transition-colors text-xs"
-                    >
-                      <Upload className="w-3 h-3" /> 上传 {fileName}
-                    </button>
-                  )}
-                </div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-px bg-slate-700" />
+                <p className="text-xs font-semibold text-green-400 uppercase tracking-wider px-2">系统上线资料</p>
+                <div className="flex-1 h-px bg-slate-700" />
+              </div>
+              <FileBlock
+                label="上线阶段证明" file={goLiveProof} required isGoLive
+                onUpload={() => handleFileUpload('上线阶段证明', true, true)}
+                onRemove={() => setGoLiveProof('')}
+              />
+              {GOLIVE_EXTRA_FILES.map(fileName => (
+                <FileBlock
+                  key={fileName} label={fileName} file={goLiveOptFiles[fileName] || ''} required={false} isGoLive
+                  onUpload={() => handleFileUpload(fileName, false, true)}
+                  onRemove={() => setGoLiveOptFiles(p => { const n = {...p}; delete n[fileName]; return n; })}
+                />
               ))}
             </div>
-          </div>
+          )}
 
           {/* 备注 */}
           <div>
@@ -249,7 +308,8 @@ function StageFormDialog({ open, onClose, stage, record, onSave }: StageFormProp
           <Button variant="outline" onClick={onClose}
             className="border-slate-600 text-slate-300 hover:bg-slate-800">取消</Button>
           <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
-            <CheckCircle2 className="w-4 h-4" /> 保存并完成本阶段
+            <CheckCircle2 className="w-4 h-4" />
+            {mergeGoLive ? '保存并完成两个阶段' : '保存并完成本阶段'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -431,24 +491,41 @@ export default function ProjectStagePage({ projectId: propProjectId, onBack, can
   const [, navigate] = useLocation();
   const projectId = propProjectId || params.projectId || 'PRJ-2026-001';
 
-  // 模拟当前项目处于第1阶段（需求确认），前一阶段已完成
+  // 阶段模式：standard（5阶段）/ lite（精简2阶段）
+  type StageMode = 'standard' | 'lite';
+  const [stageMode, setStageMode] = useState<StageMode>('standard');
+  const activeStages = stageMode === 'standard' ? STAGES : STAGES_LITE;
+
   const [records, setRecords] = useState<StageRecord[]>(() => initRecords(1));
+  const [liteRecords, setLiteRecords] = useState<StageRecord[]>(() =>
+    STAGES_LITE.map((s, i) => ({
+      stageId: s.id,
+      status: i === 0 ? 'pending' : 'locked',
+      optionalFiles: {},
+    } as StageRecord))
+  );
+  const currentRecords = stageMode === 'standard' ? records : liteRecords;
+  const setCurrentRecords = stageMode === 'standard' ? setRecords : setLiteRecords;
+
   const [activeStage, setActiveStage] = useState<number | null>(null);
 
-  const handleSave = (idx: number, r: StageRecord) => {
-    setRecords(prev => {
+  // 标准模式保存（逐阶段解锁）
+  const handleSave = (idx: number, r: StageRecord, mergeGoLive?: boolean) => {
+    setCurrentRecords(prev => {
       const next = [...prev];
       next[idx] = r;
-      // 解锁下一阶段
-      if (idx + 1 < next.length && next[idx + 1].status === 'locked') {
+      if (mergeGoLive && stageMode === 'lite' && idx === 0 && next.length > 1) {
+        // 精简模式合并：第二阶段（系统上线）也标记为完成
+        next[1] = { ...next[1], status: 'done', submitDate: r.submitDate };
+      } else if (idx + 1 < next.length && next[idx + 1].status === 'locked') {
         next[idx + 1] = { ...next[idx + 1], status: 'pending' };
       }
       return next;
     });
   };
 
-  const completedCount = records.filter(r => r.status === 'done').length;
-  const progress = Math.round((completedCount / STAGES.length) * 100);
+  const completedCount = currentRecords.filter(r => r.status === 'done').length;
+  const progress = Math.round((completedCount / activeStages.length) * 100);
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
@@ -460,15 +537,44 @@ export default function ProjectStagePage({ projectId: propProjectId, onBack, can
         </Button>
       </div>
 
+      {/* 阶段模式切换 */}
+      <div className="flex gap-2 mb-5">
+        <button
+          onClick={() => setStageMode('standard')}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all border ${
+            stageMode === 'standard'
+              ? 'bg-blue-600/20 text-blue-400 border-blue-500/40'
+              : 'text-slate-500 border-slate-700 hover:border-slate-500 hover:text-slate-300'
+          }`}
+        >
+          标准模式
+          <span className="text-xs opacity-60">5 阶段</span>
+        </button>
+        <button
+          onClick={() => setStageMode('lite')}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all border ${
+            stageMode === 'lite'
+              ? 'bg-green-600/20 text-green-400 border-green-500/40'
+              : 'text-slate-500 border-slate-700 hover:border-slate-500 hover:text-slate-300'
+          }`}
+        >
+          精简模式
+          <span className="text-xs opacity-60">需求确认 + 系统上线</span>
+        </button>
+        {stageMode === 'lite' && (
+          <span className="text-xs text-slate-500 self-center ml-1">· 支持合并提交，适合小项目快速交付</span>
+        )}
+      </div>
+
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
           <div>
             <h1 className="text-xl font-semibold text-slate-100">项目阶段流程</h1>
-            <p className="text-sm text-slate-400 mt-0.5">项目编号：{projectId} · 共 {STAGES.length} 个阶段</p>
+            <p className="text-sm text-slate-400 mt-0.5">项目编号：{projectId} · 共 {activeStages.length} 个阶段</p>
           </div>
           <div className="text-right">
             <p className="text-2xl font-bold text-slate-100">{progress}%</p>
-            <p className="text-xs text-slate-500">已完成 {completedCount}/{STAGES.length} 阶段</p>
+            <p className="text-xs text-slate-500">已完成 {completedCount}/{activeStages.length} 阶段</p>
           </div>
         </div>
         {/* 进度条 */}
@@ -480,13 +586,13 @@ export default function ProjectStagePage({ projectId: propProjectId, onBack, can
 
       {/* 阶段列表 */}
       <div>
-        {STAGES.map((stage, i) => (
+        {activeStages.map((stage, i) => (
           <StageCard
             key={stage.id}
             stage={stage}
-            record={records[i]}
+            record={currentRecords[i]}
             index={i}
-            isLast={i === STAGES.length - 1}
+            isLast={i === activeStages.length - 1}
             onOpen={() => setActiveStage(i)}
           />
         ))}
@@ -497,9 +603,10 @@ export default function ProjectStagePage({ projectId: propProjectId, onBack, can
         <StageFormDialog
           open={true}
           onClose={() => setActiveStage(null)}
-          stage={STAGES[activeStage]}
-          record={records[activeStage]}
-          onSave={r => { handleSave(activeStage, r); setActiveStage(null); }}
+          stage={activeStages[activeStage]}
+          record={currentRecords[activeStage]}
+          canMergeGoLive={stageMode === 'lite' && activeStage === 0}
+          onSave={(r, mergeGoLive) => { handleSave(activeStage, r, mergeGoLive); setActiveStage(null); }}
         />
       )}
     </div>
