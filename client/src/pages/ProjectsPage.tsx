@@ -11,11 +11,12 @@ import {
   GitBranch,
   Plus,
   Search,
+  UserCheck,
   X,
   XCircle,
 } from 'lucide-react';
 import { useState } from 'react';
-import { projects, Project, Contract } from '../lib/mockData';
+import { projects as initialProjects, Project, Contract } from '../lib/mockData';
 import { toast } from 'sonner';
 import { useContracts } from '../contexts/ContractContext';
 import ProjectStagePage from './ProjectStagePage';
@@ -362,7 +363,82 @@ function SubContractModal({ project, onClose, onSave }: {
   );
 }
 
-// ── 主页面 ────────────────────────────────────────────────────
+// ── 主页面
+// 可选 PM 列表
+const PM_LIST = [
+  { name: '张伟' }, { name: '刘芳' }, { name: '陈建国' }, { name: '王小明' },
+];
+
+// 移交项目经理弹窗
+function TransferPMModal({
+  project, onClose, onTransfer,
+}: { project: Project; onClose: () => void; onTransfer: (newManager: string) => void; }) {
+  const [selected, setSelected] = useState('');
+  const [reason, setReason] = useState('');
+  const available = PM_LIST.filter(p => p.name !== project.manager);
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selected) { toast.error('请选择新的项目经理'); return; }
+    onTransfer(selected);
+    toast.success(`项目「${project.name}」已移交给 ${selected}`);
+    onClose();
+  }
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-card border border-border rounded-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+          <div>
+            <div className="text-sm font-bold text-foreground">移交项目经理</div>
+            <div className="text-xs text-muted-foreground mt-0.5">{project.name}</div>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-xl leading-none">×</button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <div className="flex items-center gap-3 bg-secondary/40 rounded-lg px-3 py-2.5">
+            <div className="w-7 h-7 rounded-full bg-blue-500/20 flex items-center justify-center text-xs font-bold text-blue-400">{project.manager[0]}</div>
+            <div>
+              <div className="text-xs text-muted-foreground">当前负责人</div>
+              <div className="text-sm font-medium text-foreground">{project.manager}</div>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-2">移交给 <span className="text-red-400">*</span></label>
+            <div className="grid grid-cols-2 gap-2">
+              {available.map(pm => (
+                <button key={pm.name} type="button" onClick={() => setSelected(pm.name)}
+                  className={cn('flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-colors',
+                    selected === pm.name ? 'bg-blue-600/20 border-blue-500/50 text-blue-400' : 'bg-secondary/30 border-border hover:border-blue-500/30 text-foreground'
+                  )}>
+                  <div className={cn('w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0',
+                    selected === pm.name ? 'bg-blue-500/30 text-blue-300' : 'bg-secondary text-muted-foreground'
+                  )}>{pm.name[0]}</div>
+                  <div>
+                    <div className="text-xs font-medium">{pm.name}</div>
+                    <div className="text-[10px] text-muted-foreground">项目经理</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1.5">交接备注（选填）</label>
+            <textarea value={reason} onChange={e => setReason(e.target.value)}
+              placeholder="如：因出差无法跟进，请接手后续跟进验收阶段…"
+              rows={3} className="w-full px-3 py-2 bg-input border border-border rounded-lg text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none" />
+          </div>
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onClose} className="flex-1 h-9 bg-secondary hover:bg-accent text-foreground text-sm rounded-lg transition-colors">取消</button>
+            <button type="submit" className="flex-1 h-9 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors flex items-center justify-center gap-1.5">
+              <UserCheck className="w-3.5 h-3.5" />确认移交
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── 主页面 ────────────────────────────────────────────
 interface ProjectsPageProps {
   onNewProject?: () => void;
 }
@@ -373,19 +449,25 @@ export default function ProjectsPage({ onNewProject }: ProjectsPageProps) {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [stageProjectId, setStageProjectId] = useState<string | null>(null);
   const [subContractProject, setSubContractProject] = useState<Project | null>(null);
+  const [transferProject, setTransferProject] = useState<Project | null>(null);
+  // 项目列表用 state 管理，支持移交 PM 后实时更新
+  const [projectList, setProjectList] = useState<Project[]>(initialProjects);
   const { addContract } = useContracts();
+
+  function handleTransfer(projectId: string, newManager: string) {
+    setProjectList(list => list.map(p => p.id === projectId ? { ...p, manager: newManager } : p));
+  }
 
   // 进入阶段子流程页面
   if (stageProjectId) {
     return <ProjectStagePage projectId={stageProjectId} onBack={() => setStageProjectId(null)} canApprove={true} />;
   }
 
-  const filtered = projects.filter(p => {
+  const filtered = projectList.filter(p => {
     const matchSearch = p.name.includes(search) || p.id.includes(search) || p.manager.includes(search);
     const matchHealth = filterHealth === 'all' || p.health === filterHealth;
     return matchSearch && matchHealth;
   });
-
   return (
     <div className="p-6 space-y-4">
       {/* 操作栏 */}
@@ -476,7 +558,7 @@ export default function ProjectsPage({ onNewProject }: ProjectsPageProps) {
                 <div className="text-[10px] text-emerald-400">已回 ¥{(p.paidAmount / 10000).toFixed(0)}万</div>
               </div>
 
-              {/* 操作按钮 */}
+              {/* 操作按鈕 */}
               <div className="flex flex-col gap-1.5 shrink-0">
                 <ChevronRight className="w-4 h-4 text-muted-foreground" />
                 <button
@@ -492,6 +574,13 @@ export default function ProjectsPage({ onNewProject }: ProjectsPageProps) {
                 >
                   <Plus className="w-2.5 h-2.5" />
                   外协合同
+                </button>
+                <button
+                  onClick={e => { e.stopPropagation(); setTransferProject(p); }}
+                  className="flex items-center gap-1 px-2 py-1 bg-purple-500/15 hover:bg-purple-500/25 text-purple-400 border border-purple-500/30 rounded text-[10px] font-medium transition-colors"
+                >
+                  <UserCheck className="w-2.5 h-2.5" />
+                  移交PM
                 </button>
               </div>
             </div>
@@ -513,6 +602,16 @@ export default function ProjectsPage({ onNewProject }: ProjectsPageProps) {
           project={subContractProject}
           onClose={() => setSubContractProject(null)}
           onSave={c => { addContract(c); setSubContractProject(null); }}
+        />
+      )}
+      {transferProject && (
+        <TransferPMModal
+          project={transferProject}
+          onClose={() => setTransferProject(null)}
+          onTransfer={newManager => {
+            handleTransfer(transferProject.id, newManager);
+            setTransferProject(null);
+          }}
         />
       )}
     </div>

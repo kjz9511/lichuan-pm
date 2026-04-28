@@ -223,6 +223,7 @@ interface ContractFormState {
   payMethod: string;
   payAccount: string;
   stages: { name: string; amount: string; dueDate: string }[];
+  members: { name: string; role: string; days: string; dailyRate: string }[];
 }
 
 const EMPTY_FORM: ContractFormState = {
@@ -241,6 +242,7 @@ const EMPTY_FORM: ContractFormState = {
   payMethod: '银行转账',
   payAccount: '',
   stages: [{ name: '首付款', amount: '', dueDate: '' }],
+  members: [{ name: '', role: '', days: '', dailyRate: '' }],
 };
 
 function ContractFormModal({
@@ -257,6 +259,28 @@ function ContractFormModal({
 
   // 主合同列表（供外协合同关联）
   const mainContracts = mockContracts.filter((c: Contract) => c.type === '甲方合同');
+
+  // 人员人天操作
+  function addMember() {
+    setForm(f => ({ ...f, members: [...f.members, { name: '', role: '', days: '', dailyRate: '' }] }));
+  }
+  function removeMember(i: number) {
+    setForm(f => ({ ...f, members: f.members.filter((_, idx) => idx !== i) }));
+  }
+  function updateMember(i: number, field: string, value: string) {
+    setForm(f => ({
+      ...f,
+      members: f.members.map((m, idx) => idx === i ? { ...m, [field]: value } : m),
+    }));
+  }
+  // 人力成本汇总
+  const totalManCost = form.members.reduce((sum, m) => {
+    const days = parseFloat(m.days) || 0;
+    const rate = parseFloat(m.dailyRate) || 0;
+    return sum + days * rate;
+  }, 0);
+  const contractAmt = parseFloat(form.amount) || 0;
+  const costRatio = contractAmt > 0 ? (totalManCost / contractAmt) * 100 : 0;
 
   function addStage() {
     setForm(f => ({ ...f, stages: [...f.stages, { name: '', amount: '', dueDate: '' }] }));
@@ -534,6 +558,106 @@ function ContractFormModal({
               ))}
             </div>
           </div>
+
+          {/* 人员人天规划（仅甲方合同） */}
+          {form.contractType === '甲方合同' && (
+            <div className="bg-secondary/30 border border-border/50 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">人员人天规划（内部核算）</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">用于内部成本跟进，不对外公开</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={addMember}
+                  className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                >
+                  <Plus className="w-3 h-3" />
+                  添加人员
+                </button>
+              </div>
+              {/* 表头 */}
+              <div className="grid grid-cols-[1fr_1fr_80px_90px_24px] gap-2 px-1">
+                <div className="text-[10px] text-muted-foreground">姓名</div>
+                <div className="text-[10px] text-muted-foreground">角色/工种</div>
+                <div className="text-[10px] text-muted-foreground text-center">人天数</div>
+                <div className="text-[10px] text-muted-foreground text-center">日费率(元)</div>
+                <div />
+              </div>
+              {/* 人员行 */}
+              <div className="space-y-2">
+                {form.members.map((m, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_1fr_80px_90px_24px] gap-2 items-center">
+                    <input
+                      type="text"
+                      value={m.name}
+                      onChange={e => updateMember(i, 'name', e.target.value)}
+                      placeholder="如：张伟"
+                      className="h-8 px-2.5 bg-input border border-border rounded-md text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                    <input
+                      type="text"
+                      value={m.role}
+                      onChange={e => updateMember(i, 'role', e.target.value)}
+                      placeholder="如：前端开发"
+                      className="h-8 px-2.5 bg-input border border-border rounded-md text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                    <input
+                      type="number"
+                      value={m.days}
+                      onChange={e => updateMember(i, 'days', e.target.value)}
+                      placeholder="0"
+                      min="0"
+                      className="h-8 px-2.5 bg-input border border-border rounded-md text-xs text-foreground text-center placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                    <input
+                      type="number"
+                      value={m.dailyRate}
+                      onChange={e => updateMember(i, 'dailyRate', e.target.value)}
+                      placeholder="0"
+                      min="0"
+                      className="h-8 px-2.5 bg-input border border-border rounded-md text-xs text-foreground text-center placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                    {form.members.length > 1 ? (
+                      <button type="button" onClick={() => removeMember(i)} className="w-6 h-6 flex items-center justify-center text-muted-foreground hover:text-red-400 transition-colors">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    ) : <div />}
+                  </div>
+                ))}
+              </div>
+              {/* 汇总行 */}
+              {totalManCost > 0 && (
+                <div className="flex items-center justify-between pt-2 border-t border-border/40">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground">总人天：</span>
+                    <span className="text-xs font-medium text-foreground">
+                      {form.members.reduce((s, m) => s + (parseFloat(m.days) || 0), 0)} 天
+                    </span>
+                    <span className="text-xs text-muted-foreground ml-2">人力成本：</span>
+                    <span className="text-xs font-bold text-amber-400">¥{totalManCost.toLocaleString()}</span>
+                  </div>
+                  {contractAmt > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-20 h-1.5 bg-secondary rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            costRatio > 80 ? 'bg-red-500' : costRatio > 60 ? 'bg-amber-500' : 'bg-emerald-500'
+                          }`}
+                          style={{ width: `${Math.min(costRatio, 100)}%` }}
+                        />
+                      </div>
+                      <span className={`text-xs font-medium ${
+                        costRatio > 80 ? 'text-red-400' : costRatio > 60 ? 'text-amber-400' : 'text-emerald-400'
+                      }`}>
+                        占合同 {costRatio.toFixed(0)}%
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* 提交 */}
           <div className="flex gap-3">
