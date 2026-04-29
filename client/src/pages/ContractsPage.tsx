@@ -25,8 +25,15 @@ import { useAI } from '@/hooks/useAI';
 // ─── Badge 组件 ───────────────────────────────────────────────
 function ContractTypeBadge({ type }: { type: string }) {
   return type === '甲方合同'
-    ? <span className="badge-blue px-2 py-0.5 rounded text-xs font-medium">甲方合同</span>
-    : <span className="badge-yellow px-2 py-0.5 rounded text-xs font-medium">外协合同</span>;
+    ? (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+        <span className="text-[9px]">↑</span>收款合同
+      </span>
+    ) : (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/25">
+        <span className="text-[9px]">↓</span>付款合同
+      </span>
+    );
 }
 
 function ContractStatusBadge({ status }: { status: string }) {
@@ -704,7 +711,7 @@ export default function ContractsPage() {
     const hasMain = mainContracts.some(c => c.projectId === p.id);
     const hasSub = subContracts.some(c => c.projectId === p.id);
     if (filterType === '甲方合同') return hasMain;
-    if (filterType === '外协合同') return hasSub;
+    if (filterType === '外包协议') return hasSub;
     return hasMain || hasSub;
   });  return (
     <div className="p-6 space-y-5">
@@ -738,7 +745,7 @@ export default function ContractsPage() {
           {[
             { value: 'all', label: '全部' },
             { value: '甲方合同', label: '甲方合同' },
-            { value: '外协合同', label: '外协合同' },
+            { value: '外包协议', label: '外协合同' },
           ].map(f => (
             <button
               key={f.value}
@@ -773,23 +780,51 @@ export default function ContractsPage() {
       <div className="space-y-6">
         {projectGroups.map(project => {
           const projectMainContracts = mainContracts.filter(c => c.projectId === project.id && (filterType === 'all' || filterType === '甲方合同'));
-          const projectSubContracts = subContracts.filter(c => c.projectId === project.id && (filterType === 'all' || filterType === '外协合同'));
+          const projectSubContracts = subContracts.filter(c => c.projectId === project.id && (filterType === 'all' || filterType === '外包协议'));
           if (projectMainContracts.length === 0 && projectSubContracts.length === 0) return null;
 
           return (
             <div key={project.id}>
               {/* 项目标题 */}
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-1.5 h-4 rounded-full bg-blue-500" />
-                <span className="text-sm font-semibold text-foreground">{project.name}</span>
-                <span className="text-xs text-muted-foreground font-mono">{project.id}</span>
-                <span className="text-xs text-muted-foreground">· 项目经理：{project.manager}</span>
-              </div>
+              {(() => {
+                const pMain = mainContracts.filter(c => c.projectId === project.id);
+                const pSub = subContracts.filter(c => c.projectId === project.id);
+                const totalReceive = pMain.reduce((s, c) => s + c.amount, 0);
+                const totalPay = pSub.reduce((s, c) => s + c.amount, 0);
+                const profit = totalReceive - totalPay;
+                return (
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <div className="w-1.5 h-4 rounded-full bg-blue-500" />
+                    <span className="text-sm font-semibold text-foreground">{project.name}</span>
+                    <span className="text-xs text-muted-foreground font-mono">{project.id}</span>
+                    <span className="text-xs text-muted-foreground">· PM：{project.manager}</span>
+                    <div className="ml-auto flex items-center gap-3 text-xs">
+                      {totalReceive > 0 && (
+                        <span className="flex items-center gap-1 text-emerald-400">
+                          <span className="text-[10px]">↑</span>
+                          收款 ¥{(totalReceive / 10000).toFixed(0)}万
+                        </span>
+                      )}
+                      {totalPay > 0 && (
+                        <span className="flex items-center gap-1 text-amber-400">
+                          <span className="text-[10px]">↓</span>
+                          付款 ¥{(totalPay / 10000).toFixed(0)}万
+                        </span>
+                      )}
+                      {totalReceive > 0 && totalPay > 0 && (
+                        <span className={profit >= 0 ? 'text-blue-400' : 'text-red-400'}>
+                          毛利 {profit >= 0 ? '+' : ''}¥{(profit / 10000).toFixed(0)}万
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="space-y-2">
                 {/* 主合同 */}
                 {projectMainContracts.map(c => {
-                  const children = subContracts.filter(s => s.parentContractId === c.id && (filterType === 'all' || filterType === '外协合同'));
+                  const children = subContracts.filter(s => s.parentContractId === c.id && (filterType === 'all' || filterType === '外包协议'));
                   return (
                     <div key={c.id} className="space-y-2">
                       <ContractCard contract={c} isChild={false} />

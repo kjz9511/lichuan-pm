@@ -170,9 +170,9 @@ function SubContractModal({ project, onClose, onSave }: {
   onClose: () => void;
   onSave: (c: Contract) => void;
 }) {
-  const { contracts } = useContracts();
-  const mainContract = contracts.find(c => c.projectId === project.id && c.type === '甲方合同');
-
+   const { contracts } = useContracts();
+  // 该项目下所有甲方合同（可能多个）
+  const mainContracts = contracts.filter(c => c.projectId === project.id && c.type === '甲方合同');
   const [form, setForm] = useState({
     contractName: '',
     vendor: '',
@@ -182,6 +182,8 @@ function SubContractModal({ project, onClose, onSave }: {
     remark: '',
     payMethod: '银行转账',
     payAccount: '',
+    // 默认选第一个甲方合同（如果有）
+    parentContractId: mainContracts[0]?.id || '',
     stages: [{ name: '预付款', amount: '', dueDate: '' }],
   });
 
@@ -216,7 +218,7 @@ function SubContractModal({ project, onClose, onSave }: {
       status: '待签署',
       paidAmount: 0,
       pendingAmount: Number(form.amount),
-      parentContractId: mainContract?.id,
+      parentContractId: form.parentContractId || undefined,
       stages: form.stages.map(s => ({
         name: s.name,
         amount: Number(s.amount) || 0,
@@ -246,11 +248,29 @@ function SubContractModal({ project, onClose, onSave }: {
         </div>
 
         <div className="p-5 space-y-4">
-          {/* 关联主合同提示 */}
-          {mainContract ? (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-400">
-              <FileText className="w-3.5 h-3.5 shrink-0" />
-              关联主合同：{mainContract.contractName}（¥{(mainContract.amount / 10000).toFixed(0)}万）
+          {/* 关联甲方合同—支持多个甲方合同选择 */}
+          {mainContracts.length > 0 ? (
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 space-y-2">
+              <label className="text-xs font-medium text-blue-400 flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5" />
+                关联甲方合同 <span className="text-red-400">*</span>
+              </label>
+              {mainContracts.length === 1 ? (
+                <div className="text-xs text-blue-300/80 px-1">
+                  {mainContracts[0].contractName}（¥{(mainContracts[0].amount / 10000).toFixed(0)}万）
+                </div>
+              ) : (
+                <select
+                  value={form.parentContractId}
+                  onChange={e => setForm(f => ({ ...f, parentContractId: e.target.value }))}
+                  className="w-full h-9 px-3 bg-input border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring">
+                  <option value="">请选择关联的甲方合同</option>
+                  {mainContracts.map(c => (
+                    <option key={c.id} value={c.id}>{c.contractName}（¥{(c.amount / 10000).toFixed(0)}万）</option>
+                  ))}
+                </select>
+              )}
+              <div className="text-[10px] text-blue-400/60">外协合同挂靠在甲方合同下，体现分包关系</div>
             </div>
           ) : (
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400">
