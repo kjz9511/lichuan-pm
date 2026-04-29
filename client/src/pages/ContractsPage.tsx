@@ -824,25 +824,62 @@ export default function ContractsPage() {
                 );
               })()}
 
-              <div className="space-y-2">
-                {/* 主合同 */}
-                {projectMainContracts.map(c => {
-                  const children = subContracts.filter(s => s.parentContractId === c.id && (filterType === 'all' || filterType === '外包协议'));
-                  return (
-                    <div key={c.id} className="space-y-2">
-                      <ContractCard contract={c} isChild={false} />
-                      {/* 子合同（外协）缩进展示 */}
-                      {children.map(sub => (
-                        <ContractCard key={sub.id} contract={sub} isChild={true} />
-                      ))}
+               {/* 并列两栏：左侧收款合同，右侧付款合同 */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* 左栏：甲方合同（收款） */}
+                {(filterType === 'all' || filterType === '甲方合同') && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                        <span>↑</span> 收款合同（甲方）
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">{projectMainContracts.length} 份</span>
+                      {projectMainContracts.length > 0 && (
+                        <span className="text-[10px] text-emerald-400 ml-auto">
+                          ¥{projectMainContracts.reduce((s,c)=>s+c.amount,0).toLocaleString()}
+                        </span>
+                      )}
                     </div>
-                  );
-                })}
-
-                {/* 没有主合同但有外协合同的情况（过滤外协时） */}
-                {projectMainContracts.length === 0 && projectSubContracts.map(c => (
-                  <ContractCard key={c.id} contract={c} isChild={true} />
-                ))}
+                    {projectMainContracts.length === 0 ? (
+                      <div className="text-center py-4 text-xs text-muted-foreground border border-dashed border-border/40 rounded-lg">
+                        暂无甲方合同
+                      </div>
+                    ) : (
+                      projectMainContracts.map(c => (
+                        <ContractCard key={c.id} contract={c} isChild={false} />
+                      ))
+                    )}
+                  </div>
+                )}
+                {/* 右栏：外协合同（付款） */}
+                {(filterType === 'all' || filterType === '外包协议') && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <span className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                        <span>↓</span> 付款合同（外协）
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">{projectSubContracts.length} 份</span>
+                      {projectSubContracts.length > 0 && (
+                        <span className="text-[10px] text-amber-400 ml-auto">
+                          ¥{projectSubContracts.reduce((s,c)=>s+c.amount,0).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                    {projectSubContracts.length === 0 ? (
+                      <div className="text-center py-4 text-xs text-muted-foreground border border-dashed border-border/40 rounded-lg">
+                        暂无外协合同
+                      </div>
+                    ) : (
+                      projectSubContracts.map(c => (
+                        <ContractCard key={c.id} contract={c} isChild={true} />
+                      ))
+                    )}
+                  </div>
+                )}
+                {/* 单独过滤甲方合同时，右栏占满 */}
+                {filterType === '甲方合同' && (
+                  <div />
+                )}
               </div>
             </div>
           );
