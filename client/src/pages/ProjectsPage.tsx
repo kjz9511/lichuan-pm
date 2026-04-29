@@ -9,6 +9,7 @@ import {
   ChevronRight,
   FileText,
   GitBranch,
+  History,
   Plus,
   Search,
   UserCheck,
@@ -21,6 +22,7 @@ import { toast } from 'sonner';
 import { useContracts } from '../contexts/ContractContext';
 import { useRole } from '../contexts/RoleContext';
 import { useTransfer } from '../contexts/TransferContext';
+import { useProject } from '../contexts/ProjectContext';
 import ProjectStagePage from './ProjectStagePage';
 
 function HealthBadge({ health }: { health: 'green' | 'yellow' | 'red' }) {
@@ -452,13 +454,13 @@ export default function ProjectsPage({ onNewProject }: ProjectsPageProps) {
   const [stageProjectId, setStageProjectId] = useState<string | null>(null);
   const [subContractProject, setSubContractProject] = useState<Project | null>(null);
   const [transferProject, setTransferProject] = useState<Project | null>(null);
-  const [projectList, setProjectList] = useState<Project[]>(initialProjects);
+  const { projectList } = useProject();
   const { addContract } = useContracts();
   const { role, roleInfo } = useRole();
   const { addRequest, requests } = useTransfer();
 
   // 老板看全部项目，PM 只看自己负责的
-  const visibleProjects = role === 'pm'
+  const visibleProjects = (role === 'pm' || role === 'pm2' || role === 'pm3')
     ? projectList.filter(p => p.manager === roleInfo.name)
     : projectList;
 
@@ -538,7 +540,7 @@ export default function ProjectsPage({ onNewProject }: ProjectsPageProps) {
                 </div>
                 <div className="text-xs text-muted-foreground mb-3">{p.id} · {p.client} · PM: {p.manager} · 外包: {p.vendor}</div>
                 {/* 进度条 */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 mb-2">
                   <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
                     <div
                       className={cn(
@@ -551,6 +553,35 @@ export default function ProjectsPage({ onNewProject }: ProjectsPageProps) {
                   </div>
                   <span className="text-xs text-foreground font-medium w-8 text-right">{p.progress}%</span>
                 </div>
+                {/* 移交历史记录 */}
+                {(() => {
+                  const history = requests.filter(r => r.projectId === p.id);
+                  if (history.length === 0) return null;
+                  return (
+                    <div className="mt-2 pt-2 border-t border-border/50">
+                      <div className="flex items-center gap-1 mb-1.5">
+                        <History className="w-3 h-3 text-muted-foreground" />
+                        <span className="text-[10px] text-muted-foreground font-medium">移交记录</span>
+                      </div>
+                      <div className="space-y-1">
+                        {history.map(r => (
+                          <div key={r.id} className="flex items-center gap-2 text-[10px]">
+                            <span className={cn(
+                              'px-1.5 py-0.5 rounded font-medium shrink-0',
+                              r.status === 'approved' ? 'bg-emerald-500/15 text-emerald-400' :
+                              r.status === 'rejected' ? 'bg-red-500/15 text-red-400' :
+                              'bg-amber-500/15 text-amber-400'
+                            )}>
+                              {r.status === 'approved' ? '已通过' : r.status === 'rejected' ? '已驳回' : '待审批'}
+                            </span>
+                            <span className="text-muted-foreground">{r.fromPM} → {r.toPM}</span>
+                            <span className="text-muted-foreground/60 ml-auto shrink-0">{r.createdAt}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* 右侧信息 */}

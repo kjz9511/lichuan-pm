@@ -30,18 +30,18 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { id: 'dashboard', label: '仪表盘', icon: LayoutDashboard, roles: ['boss', 'pm', 'vendor', 'finance'] },
-  { id: 'projects', label: '项目台账', icon: FolderOpen, roles: ['boss', 'pm', 'finance'] },
-  { id: 'milestones', label: '里程碑 & 交付物', icon: ClipboardList, roles: ['boss', 'pm', 'vendor'] },
-  { id: 'contracts', label: '合同管理', icon: FileText, roles: ['boss', 'pm', 'finance'] },
-  { id: 'vendors', label: '供应商管理', icon: Building2, roles: ['boss', 'pm', 'finance'] },
-  { id: 'invoices', label: '发票 & 结算', icon: Receipt, roles: ['boss', 'vendor', 'finance'], badge: 2 },
-  { id: 'documents', label: '我的文档', icon: BookOpen, roles: ['pm', 'vendor'] },
-  { id: 'reports', label: '数据报表', icon: BarChart3, roles: ['boss', 'finance'] },
-  { id: 'users', label: '用户管理', icon: Users, roles: ['boss'] },
-  { id: 'logs', label: '操作日志', icon: Shield, roles: ['boss'] },
-  { id: 'notifications', label: '通知设置', icon: Bell, roles: ['boss', 'pm'] },
-  { id: 'settings', label: '系统设置', icon: Settings, roles: ['boss'] },
+  { id: 'dashboard',     label: '仪表盘',         icon: LayoutDashboard, roles: ['boss', 'pm', 'pm2', 'pm3', 'vendor', 'finance'] },
+  { id: 'projects',      label: '项目台账',       icon: FolderOpen,      roles: ['boss', 'pm', 'pm2', 'pm3', 'finance'] },
+  { id: 'milestones',    label: '里程碑 & 交付物', icon: ClipboardList,   roles: ['boss', 'pm', 'pm2', 'pm3', 'vendor'] },
+  { id: 'contracts',     label: '合同管理',       icon: FileText,        roles: ['boss', 'pm', 'pm2', 'pm3', 'finance'] },
+  { id: 'vendors',       label: '供应商管理',     icon: Building2,       roles: ['boss', 'pm', 'pm2', 'pm3', 'finance'] },
+  { id: 'invoices',      label: '发票 & 结算',    icon: Receipt,         roles: ['boss', 'vendor', 'finance'], badge: 2 },
+  { id: 'documents',     label: '我的文档',       icon: BookOpen,        roles: ['pm', 'pm2', 'pm3', 'vendor'] },
+  { id: 'reports',       label: '数据报表',       icon: BarChart3,       roles: ['boss', 'finance'] },
+  { id: 'users',         label: '用户管理',       icon: Users,           roles: ['boss'] },
+  { id: 'logs',          label: '操作日志',       icon: Shield,          roles: ['boss'] },
+  { id: 'notifications', label: '通知设置',       icon: Bell,            roles: ['boss', 'pm', 'pm2', 'pm3'] },
+  { id: 'settings',      label: '系统设置',       icon: Settings,        roles: ['boss'] },
 ];
 
 interface SidebarProps {

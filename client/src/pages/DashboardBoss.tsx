@@ -30,6 +30,7 @@ import {
 } from '../lib/mockData';
 import { useAI } from '@/hooks/useAI';
 import { useTransfer } from '../contexts/TransferContext';
+import { useProject } from '../contexts/ProjectContext';
 
 function HealthBadge({ health }: { health: 'green' | 'yellow' | 'red' }) {
   if (health === 'green') return <span className="badge-green px-2 py-0.5 rounded text-xs font-medium">健康</span>;
@@ -52,6 +53,7 @@ const STAGE_COLORS = ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#6b7280'];
 export default function DashboardBoss() {
   const activeProjects = projects.filter(p => p.status === '进行中');
   const { requests, approveRequest, rejectRequest } = useTransfer();
+  const { updateManager } = useProject();
   const pendingTransfers = requests.filter(r => r.status === 'pending');
   const totalPending = 2 + pendingTransfers.length;
 
@@ -252,7 +254,9 @@ export default function DashboardBoss() {
                   </div>
                   <div className="flex gap-1.5 ml-2 shrink-0">
                     <button
-                      onClick={() => approveRequest(req.id)}
+                      onClick={() => approveRequest(req.id, (projectId, newManager) => {
+                        updateManager(projectId, newManager);
+                      })}
                       className="px-2.5 py-1 bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 rounded text-[10px] hover:bg-emerald-600/30 transition-colors"
                     >通过</button>
                     <button

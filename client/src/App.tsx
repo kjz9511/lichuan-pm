@@ -9,6 +9,7 @@ import Sidebar from "./components/Sidebar";
 import { RoleProvider, useRole, Role } from "./contexts/RoleContext";
 import { ContractProvider, useContracts } from "./contexts/ContractContext";
 import { TransferProvider } from "./contexts/TransferContext";
+import { ProjectProvider } from "./contexts/ProjectContext";
 import { Contract } from "./lib/mockData";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -58,7 +59,7 @@ function MainApp() {
     switch (activePage) {
       case 'dashboard':
         if (role === 'boss') return <DashboardBoss />;
-        if (role === 'pm') return <DashboardPM />;
+        if (role === 'pm' || role === 'pm2' || role === 'pm3') return <DashboardPM />;
         if (role === 'vendor') return <DashboardVendor />;
         if (role === 'finance') return <DashboardFinance />;
         return <DashboardBoss />;
@@ -109,10 +110,12 @@ function App() {
         <RoleProvider>
           <ContractProvider>
             <TransferProvider>
+            <ProjectProvider>
             <TooltipProvider>
               <Toaster />
               <MainApp />
             </TooltipProvider>
+            </ProjectProvider>
             </TransferProvider>
           </ContractProvider>
         </RoleProvider>

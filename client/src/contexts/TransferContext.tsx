@@ -18,7 +18,7 @@ export interface TransferRequest {
 interface TransferContextType {
   requests: TransferRequest[];
   addRequest: (req: Omit<TransferRequest, 'id' | 'status' | 'createdAt'>) => void;
-  approveRequest: (id: string) => void;
+  approveRequest: (id: string, onApproved?: (projectId: string, newManager: string) => void) => void;
   rejectRequest: (id: string) => void;
   pendingCount: number;
 }
@@ -38,10 +38,14 @@ export function TransferProvider({ children }: { children: React.ReactNode }) {
     setRequests(prev => [newReq, ...prev]);
   }
 
-  function approveRequest(id: string) {
-    setRequests(prev =>
-      prev.map(r => r.id === id ? { ...r, status: 'approved', reviewedAt: new Date().toISOString().slice(0, 10) } : r)
-    );
+  function approveRequest(id: string, onApproved?: (projectId: string, newManager: string) => void) {
+    setRequests(prev => {
+      const req = prev.find(r => r.id === id);
+      if (req && onApproved) {
+        onApproved(req.projectId, req.toPM);
+      }
+      return prev.map(r => r.id === id ? { ...r, status: 'approved', reviewedAt: new Date().toISOString().slice(0, 10) } : r);
+    });
   }
 
   function rejectRequest(id: string) {
