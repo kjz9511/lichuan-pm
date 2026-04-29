@@ -44,6 +44,17 @@ export interface Contract {
   pendingAmount: number;
   stages: PaymentStage[];
   parentContractId?: string;  // 外协合同关联的主合同ID（甲方合同）
+  changes?: ContractChange[];  // 合同变更记录
+}
+
+export interface ContractChange {
+  id: string;
+  date: string;           // 变更日期
+  type: '金额变更' | '工期变更' | '范围变更' | '其他';
+  reason: string;         // 变更原因
+  amountBefore: number;   // 变更前金额
+  amountAfter: number;    // 变更后金额
+  operator: string;       // 操作人
 }
 
 export interface PaymentStage {

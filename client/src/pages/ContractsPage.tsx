@@ -15,9 +15,15 @@ import {
   Plus,
   Sparkles,
   X,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  TrendingUp,
+  TrendingDown,
+  History,
 } from 'lucide-react';
 import { useState } from 'react';
-import { Contract, contracts as mockContracts, projects } from '../lib/mockData';
+import { Contract, ContractChange, contracts as mockContracts, projects } from '../lib/mockData';
 import { useContracts } from '../contexts/ContractContext';
 import { toast } from 'sonner';
 import { useAI } from '@/hooks/useAI';
@@ -47,12 +53,69 @@ function PaymentStageBadge({ status }: { status: string }) {
 }
 
 // ─── 合同卡片（主合同 or 子合同） ─────────────────────────────
-function ContractCard({ contract, isChild = false }: { contract: Contract; isChild?: boolean }) {
+function ContractCard({ contract, isChild = false, onUpdate }: {
+  contract: Contract; isChild?: boolean;
+  onUpdate?: (id: string, patch: Partial<Contract>) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
   const [aiSummary, setAiSummary] = useState('');
   const [aiOpen, setAiOpen] = useState(false);
+  const [showChangeForm, setShowChangeForm] = useState(false);
+  const [changeForm, setChangeForm] = useState({
+    type: '金额变更' as ContractChange['type'],
+    reason: '',
+    amountAfter: '',
+    operator: '何家劲',
+  });
   const { run: runAI, loading: aiLoading } = useAI({ stream: true });
-  const paidRatio = contract.amount > 0 ? contract.paidAmount / contract.amount : 0;
+
+  const changes = contract.changes || [];
+  const currentAmount = changes.length > 0
+    ? changes[changes.length - 1].amountAfter
+    : contract.amount;
+  const paidRatio = currentAmount > 0 ? contract.paidAmount / currentAmount : 0;
+
+  // 快捷标记分期节点状态
+  const handleMarkStage = (stageIdx: number, newStatus: '已回款' | '未回款') => {
+    if (!onUpdate) return;
+    const newStages = contract.stages.map((s, i) =>
+      i === stageIdx ? { ...s, status: newStatus } : s
+    );
+    const newPaid = newStages
+      .filter(s => s.status === '已回款')
+      .reduce((sum, s) => sum + s.amount, 0);
+    onUpdate(contract.id, {
+      stages: newStages,
+      paidAmount: newPaid,
+      pendingAmount: currentAmount - newPaid,
+    });
+  };
+
+  // 提交变更记录
+  const handleAddChange = () => {
+    if (!changeForm.reason.trim()) { alert('请填写变更原因'); return; }
+    if (!changeForm.amountAfter || Number(changeForm.amountAfter) <= 0) {
+      alert('请填写变更后金额'); return;
+    }
+    if (!onUpdate) return;
+    const prev = changes.length > 0 ? changes[changes.length - 1].amountAfter : contract.amount;
+    const newChange: ContractChange = {
+      id: `CHG-${Date.now()}`,
+      date: new Date().toISOString().slice(0, 10),
+      type: changeForm.type,
+      reason: changeForm.reason,
+      amountBefore: prev,
+      amountAfter: Number(changeForm.amountAfter),
+      operator: changeForm.operator,
+    };
+    onUpdate(contract.id, {
+      changes: [...changes, newChange],
+      amount: Number(changeForm.amountAfter),
+      pendingAmount: Number(changeForm.amountAfter) - contract.paidAmount,
+    });
+    setChangeForm({ type: '金额变更', reason: '', amountAfter: '', operator: '何家劲' });
+    setShowChangeForm(false);
+  };
 
   const handleAISummary = async () => {
     setAiOpen(true);
@@ -64,13 +127,12 @@ function ContractCard({ contract, isChild = false }: { contract: Contract; isChi
 1. 【核心摘要】用2-3句话概括合同要点
 2. 【风险提示】列出1-3个潜在风险点（如逾期、金额异常、条款缺失等）
 3. 【行动建议】给出1-2条具体的跟进建议
-
 合同信息：
 - 合同名称：${contract.contractName}
 - 合同编号：${contract.contractNo || '未填写'}
 - 合同类型：${contract.type}
 - 对方主体：${contract.vendor}
-- 合同金额：¥${contract.amount.toLocaleString()}
+- 合同金额：¥${currentAmount.toLocaleString()}
 - 已${contract.type === '甲方合同' ? '收' : '付'}：¥${contract.paidAmount.toLocaleString()}（${(paidRatio * 100).toFixed(0)}%）
 - 待${contract.type === '甲方合同' ? '收' : '付'}：¥${contract.pendingAmount.toLocaleString()}
 - 签订日期：${contract.signDate}
@@ -78,9 +140,7 @@ function ContractCard({ contract, isChild = false }: { contract: Contract; isChi
 - 合同状态：${contract.status}
 - 合同信息：${contract.contractInfo || '未填写'}
 - 分期节点：${stagesText || '无'}
-
 请用中文回答，语言简洁专业，每个部分不超过100字。`;
-
     await runAI(
       [
         { role: 'system', content: '你是厉川外包项目管理平台的AI助手，专注于合同风险分析与项目管理建议。' },
@@ -94,7 +154,7 @@ function ContractCard({ contract, isChild = false }: { contract: Contract; isChi
     <div className={cn(
       'border rounded-xl overflow-hidden transition-all',
       isChild
-        ? 'bg-secondary/30 border-border/50 ml-6 border-l-2 border-l-amber-500/40'
+        ? 'bg-secondary/30 border-border/50 border-l-2 border-l-amber-500/40'
         : 'bg-card border-border'
     )}>
       <div
@@ -112,13 +172,18 @@ function ContractCard({ contract, isChild = false }: { contract: Contract; isChi
               : <FileText className="w-4 h-4 text-blue-400" />
             }
           </div>
-
           <div className="flex-1 min-w-0">
             {/* 标题行 */}
             <div className="flex items-center gap-2 mb-0.5 flex-wrap">
               <span className="text-sm font-semibold text-foreground">{contract.contractName}</span>
               <ContractTypeBadge type={contract.type} />
               <ContractStatusBadge status={contract.status} />
+              {changes.length > 0 && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/15 text-purple-400 border border-purple-500/25">
+                  <History className="w-2.5 h-2.5" />
+                  {changes.length} 次变更
+                </span>
+              )}
             </div>
             {/* 副标题 */}
             <div className="text-xs text-muted-foreground mb-1.5 flex items-center gap-2 flex-wrap">
@@ -127,12 +192,30 @@ function ContractCard({ contract, isChild = false }: { contract: Contract; isChi
               <span>签约：{contract.signDate}</span>
               <span>计划：{contract.startDate} ~ {contract.endDate}</span>
             </div>
+            {/* 金额变更轨迹（有变更时显示） */}
+            {changes.length > 0 && (
+              <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+                <span className="text-[10px] text-muted-foreground">金额轨迹：</span>
+                <span className="text-[10px] text-muted-foreground line-through">¥{contract.amount === currentAmount ? (changes[0]?.amountBefore || contract.amount).toLocaleString() : contract.amount.toLocaleString()}</span>
+                {changes.map((ch, i) => (
+                  <span key={i} className="flex items-center gap-0.5 text-[10px]">
+                    {ch.amountAfter > ch.amountBefore
+                      ? <TrendingUp className="w-2.5 h-2.5 text-emerald-400" />
+                      : <TrendingDown className="w-2.5 h-2.5 text-red-400" />
+                    }
+                    <span className={ch.amountAfter > ch.amountBefore ? 'text-emerald-400' : 'text-red-400'}>
+                      ¥{ch.amountAfter.toLocaleString()}
+                    </span>
+                  </span>
+                ))}
+              </div>
+            )}
             {/* 回款进度 */}
             <div className="flex items-center gap-2">
               <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden max-w-[160px]">
                 <div
                   className={cn('h-full rounded-full', isChild ? 'bg-amber-500' : 'bg-emerald-500')}
-                  style={{ width: `${paidRatio * 100}%` }}
+                  style={{ width: `${Math.min(paidRatio * 100, 100)}%` }}
                 />
               </div>
               <span className={cn('text-xs font-medium', isChild ? 'text-amber-400' : 'text-emerald-400')}>
@@ -143,10 +226,9 @@ function ContractCard({ contract, isChild = false }: { contract: Contract; isChi
               </span>
             </div>
           </div>
-
           {/* 金额 + 展开 */}
           <div className="shrink-0 text-right">
-            <div className="text-sm font-bold text-foreground">¥{contract.amount.toLocaleString()}</div>
+            <div className="text-sm font-bold text-foreground">¥{currentAmount.toLocaleString()}</div>
             <div className={cn('text-xs', isChild ? 'text-amber-400' : 'text-emerald-400')}>
               {isChild ? '已付' : '已收'} ¥{contract.paidAmount.toLocaleString()}
             </div>
@@ -162,7 +244,7 @@ function ContractCard({ contract, isChild = false }: { contract: Contract; isChi
 
       {/* 展开详情 */}
       {expanded && (
-        <div className="border-t border-border/50 px-4 py-3 bg-secondary/10 space-y-3">
+        <div className="border-t border-border/50 px-4 py-3 bg-secondary/10 space-y-4">
           {/* 合同信息 & 备注 */}
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -175,35 +257,222 @@ function ContractCard({ contract, isChild = false }: { contract: Contract; isChi
             </div>
           </div>
 
-          {/* 分期节点 */}
+          {/* ── 分期节点（含快捷标记） ── */}
           <div>
-            <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              {contract.type === '甲方合同' ? '分期收款节点' : '分期付款节点'}
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                {contract.type === '甲方合同' ? '分期收款节点' : '分期付款节点'}
+              </div>
+              <div className="text-[10px] text-muted-foreground">点击节点右侧按钮快捷标记状态</div>
             </div>
             <div className="space-y-1.5">
-              {contract.stages.map((stage, i) => (
-                <div key={i} className="flex items-center justify-between py-1.5 border-b border-border/30 last:border-0">
-                  <div className="flex items-center gap-2.5">
-                    <div className={cn(
-                      'w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0',
-                      stage.status === '已回款' ? 'bg-emerald-500/20 text-emerald-400' :
-                      stage.status === '已逾期' ? 'bg-red-500/20 text-red-400' :
-                      'bg-secondary text-muted-foreground'
-                    )}>
-                      {stage.status === '已回款' ? '✓' : i + 1}
+              {contract.stages.map((stage, i) => {
+                const isPaid = stage.status === '已回款';
+                const isOverdue = stage.status === '已逾期';
+                return (
+                  <div key={i} className="flex items-center justify-between py-1.5 border-b border-border/30 last:border-0">
+                    <div className="flex items-center gap-2.5">
+                      <div className={cn(
+                        'w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0',
+                        isPaid ? 'bg-emerald-500/20 text-emerald-400' :
+                        isOverdue ? 'bg-red-500/20 text-red-400' :
+                        'bg-secondary text-muted-foreground'
+                      )}>
+                        {isPaid ? <CheckCircle2 className="w-3 h-3" /> : isOverdue ? <AlertCircle className="w-3 h-3" /> : <span>{i + 1}</span>}
+                      </div>
+                      <div>
+                        <div className="text-xs font-medium text-foreground">{stage.name}</div>
+                        <div className="text-[10px] text-muted-foreground">到期日：{stage.dueDate}</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-xs font-medium text-foreground">{stage.name}</div>
-                      <div className="text-[10px] text-muted-foreground">到期日：{stage.dueDate}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-foreground">¥{stage.amount.toLocaleString()}</span>
+                      <PaymentStageBadge status={stage.status} />
+                      {/* 快捷标记按钮 */}
+                      {onUpdate && (
+                        isPaid ? (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleMarkStage(i, '未回款'); }}
+                            className="text-[10px] px-2 py-0.5 rounded border border-slate-600 text-slate-400 hover:border-amber-500/50 hover:text-amber-400 transition-colors whitespace-nowrap"
+                          >
+                            撤销
+                          </button>
+                        ) : (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleMarkStage(i, '已回款'); }}
+                            className={cn(
+                              'text-[10px] px-2 py-0.5 rounded border transition-colors whitespace-nowrap',
+                              contract.type === '甲方合同'
+                                ? 'border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10'
+                                : 'border-amber-500/40 text-amber-400 hover:bg-amber-500/10'
+                            )}
+                          >
+                            {contract.type === '甲方合同' ? '标记已收' : '标记已付'}
+                          </button>
+                        )
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-xs font-medium text-foreground">¥{stage.amount.toLocaleString()}</span>
-                    <PaymentStageBadge status={stage.status} />
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── 合同变更记录 ── */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <History className="w-3 h-3" /> 合同变更记录
+                {changes.length > 0 && (
+                  <span className="text-purple-400">（{changes.length} 条）</span>
+                )}
+              </div>
+              {onUpdate && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowChangeForm(!showChangeForm); }}
+                  className="flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 transition-colors border border-blue-500/30 px-2 py-0.5 rounded"
+                >
+                  <Plus className="w-2.5 h-2.5" /> 新增变更
+                </button>
+              )}
+            </div>
+
+            {/* 变更记录列表 */}
+            {changes.length === 0 && !showChangeForm ? (
+              <div className="text-center py-2 text-[10px] text-muted-foreground border border-dashed border-border/40 rounded-lg">
+                暂无变更记录
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {changes.map((ch, i) => (
+                  <div key={ch.id} className="flex items-start gap-2.5 py-1.5 border-b border-border/20 last:border-0">
+                    <div className={cn(
+                      'w-4 h-4 rounded-full flex items-center justify-center shrink-0 mt-0.5',
+                      ch.amountAfter > ch.amountBefore ? 'bg-emerald-500/20' : 'bg-red-500/20'
+                    )}>
+                      {ch.amountAfter > ch.amountBefore
+                        ? <TrendingUp className="w-2.5 h-2.5 text-emerald-400" />
+                        : <TrendingDown className="w-2.5 h-2.5 text-red-400" />
+                      }
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] font-medium text-foreground">{ch.type}</span>
+                        <span className="text-[10px] text-muted-foreground">{ch.date}</span>
+                        <span className="text-[10px] text-muted-foreground">by {ch.operator}</span>
+                      </div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">{ch.reason}</div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="text-[10px] text-muted-foreground line-through">¥{ch.amountBefore.toLocaleString()}</div>
+                      <div className={cn(
+                        'text-xs font-semibold',
+                        ch.amountAfter > ch.amountBefore ? 'text-emerald-400' : 'text-red-400'
+                      )}>
+                        ¥{ch.amountAfter.toLocaleString()}
+                        <span className="text-[9px] ml-1">
+                          {ch.amountAfter > ch.amountBefore ? '+' : ''}{((ch.amountAfter - ch.amountBefore) / 10000).toFixed(1)}万
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 新增变更表单 */}
+            {showChangeForm && (
+              <div className="mt-2 p-3 bg-secondary/40 border border-border/60 rounded-lg space-y-2.5">
+                <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">新增变更</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <div className="text-[10px] text-muted-foreground mb-1">变更类型</div>
+                    <select
+                      value={changeForm.type}
+                      onChange={e => setChangeForm(f => ({ ...f, type: e.target.value as ContractChange['type'] }))}
+                      onClick={e => e.stopPropagation()}
+                      className="w-full h-7 px-2 bg-input border border-border rounded text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    >
+                      <option value="金额变更">金额变更</option>
+                      <option value="工期变更">工期变更</option>
+                      <option value="范围变更">范围变更</option>
+                      <option value="其他">其他</option>
+                    </select>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-muted-foreground mb-1">变更后金额（元）</div>
+                    <input
+                      type="number"
+                      value={changeForm.amountAfter}
+                      onChange={e => setChangeForm(f => ({ ...f, amountAfter: e.target.value }))}
+                      onClick={e => e.stopPropagation()}
+                      placeholder={`当前 ¥${currentAmount.toLocaleString()}`}
+                      className="w-full h-7 px-2 bg-input border border-border rounded text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <div className="text-[10px] text-muted-foreground mb-1">变更原因 <span className="text-red-400">*</span></div>
+                    <input
+                      type="text"
+                      value={changeForm.reason}
+                      onChange={e => setChangeForm(f => ({ ...f, reason: e.target.value }))}
+                      onClick={e => e.stopPropagation()}
+                      placeholder="如：新增功能模块，合同金额相应增加"
+                      className="w-full h-7 px-2 bg-input border border-border rounded text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-muted-foreground mb-1">操作人</div>
+                    <input
+                      type="text"
+                      value={changeForm.operator}
+                      onChange={e => setChangeForm(f => ({ ...f, operator: e.target.value }))}
+                      onClick={e => e.stopPropagation()}
+                      className="w-full h-7 px-2 bg-input border border-border rounded text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
                   </div>
                 </div>
-              ))}
-            </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowChangeForm(false); }}
+                    className="flex-1 h-7 bg-secondary hover:bg-accent text-foreground text-xs rounded transition-colors"
+                  >
+                    取消
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleAddChange(); }}
+                    className="flex-1 h-7 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
+                  >
+                    确认变更
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* AI 分析按钮 */}
+          <div>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleAISummary(); }}
+              disabled={aiLoading}
+              className="flex items-center gap-1.5 text-xs text-purple-400 hover:text-purple-300 transition-colors disabled:opacity-50"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              {aiLoading ? 'AI 分析中...' : 'AI 智能分析'}
+            </button>
+            {aiOpen && aiSummary && (
+              <div className="mt-2 p-3 bg-purple-500/5 border border-purple-500/20 rounded-lg">
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-1.5 text-xs text-purple-400 font-medium">
+                    <Bot className="w-3.5 h-3.5" /> AI 分析结果
+                  </div>
+                  <button onClick={() => setAiOpen(false)} className="text-muted-foreground hover:text-foreground">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">{aiSummary}</div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -694,7 +963,7 @@ function ContractFormModal({
 export default function ContractsPage() {
   const [filterType, setFilterType] = useState<string>('all');
   // 从全局 Context 获取合同列表（包含立项自动写入的甲方合同 + PM 发起的外协合同）
-  const { contracts } = useContracts();
+  const { contracts, updateContract } = useContracts();
 
   // 按项目分组，主合同在前，外协合同挂靠
   const mainContracts = contracts.filter(c => c.type === '甲方合同');
@@ -846,7 +1115,7 @@ export default function ContractsPage() {
                       </div>
                     ) : (
                       projectMainContracts.map(c => (
-                        <ContractCard key={c.id} contract={c} isChild={false} />
+                        <ContractCard key={c.id} contract={c} isChild={false} onUpdate={updateContract} />
                       ))
                     )}
                   </div>
@@ -871,7 +1140,7 @@ export default function ContractsPage() {
                       </div>
                     ) : (
                       projectSubContracts.map(c => (
-                        <ContractCard key={c.id} contract={c} isChild={true} />
+                        <ContractCard key={c.id} contract={c} isChild={true} onUpdate={updateContract} />
                       ))
                     )}
                   </div>
