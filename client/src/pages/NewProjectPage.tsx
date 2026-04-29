@@ -29,6 +29,16 @@ const PROJECT_TYPES = ['软件开发', 'UI/UX设计', '系统集成', '数据分
 
 interface ProjectMember { name: string; dept: string; role: string; remark: string; }
 interface ContractStage { name: string; amount: string; dueDate: string; }
+interface ContractMember { name: string; role: string; days: string; rate: string; }
+// 单份甲方合同数据
+interface SingleContractData {
+  contractName: string; contractNo: string; client: string;
+  amount: string; signDate: string; startDate: string; endDate: string;
+  contractInfo: string; remark: string;
+  contractSubtype: '主合同' | '补充协议' | '变更协议';
+  stages: ContractStage[];
+  members: ContractMember[];
+}
 
 // ── 步骤配置 ────────────────────────────────────────────────
 const STEPS = [
@@ -212,81 +222,112 @@ function Step1({ data, onChange }: { data: Step1Data; onChange: (d: Step1Data) =
 }
 
 // ── Step 2：公司合同 ────────────────────────────────────────
+// Step2 的整体数据：多份合同
 interface ContractData {
-  contractName: string; contractNo: string; client: string;
-  amount: string; signDate: string; startDate: string; endDate: string;
-  contractInfo: string; remark: string; stages: ContractStage[];
+  contracts: SingleContractData[];
 }
-function Step2({ data, onChange }: { data: ContractData; onChange: (d: ContractData) => void }) {
-  const addStage = () => {
-    onChange({ ...data, stages: [...data.stages, { name: '', amount: '', dueDate: '' }] });
+const EMPTY_SINGLE_CONTRACT: SingleContractData = {
+  contractName: '', contractNo: '', client: '', amount: '', signDate: '',
+  startDate: '', endDate: '', contractInfo: '', remark: '',
+  contractSubtype: '主合同', stages: [], members: [],
+};
+function SingleContractForm({
+  contract, index, total,
+  onChange, onRemove,
+}: {
+  contract: SingleContractData; index: number; total: number;
+  onChange: (c: SingleContractData) => void; onRemove: () => void;
+}) {
+  const addStage = () => onChange({ ...contract, stages: [...contract.stages, { name: '', amount: '', dueDate: '' }] });
+  const updateStage = (i: number, f: keyof ContractStage, v: string) => {
+    const ss = [...contract.stages]; ss[i] = { ...ss[i], [f]: v };
+    onChange({ ...contract, stages: ss });
   };
-  const updateStage = (idx: number, field: keyof ContractStage, value: string) => {
-    const ss = [...data.stages]; ss[idx] = { ...ss[idx], [field]: value };
-    onChange({ ...data, stages: ss });
+  const removeStage = (i: number) => onChange({ ...contract, stages: contract.stages.filter((_, idx) => idx !== i) });
+
+  const addMember = () => onChange({ ...contract, members: [...contract.members, { name: '', role: '', days: '', rate: '' }] });
+  const updateMember = (i: number, f: keyof ContractMember, v: string) => {
+    const ms = [...contract.members]; ms[i] = { ...ms[i], [f]: v };
+    onChange({ ...contract, members: ms });
   };
-  const removeStage = (idx: number) => {
-    onChange({ ...data, stages: data.stages.filter((_, i) => i !== idx) });
-  };
+  const removeMember = (i: number) => onChange({ ...contract, members: contract.members.filter((_, idx) => idx !== i) });
+  const totalCost = contract.members.reduce((s, m) => s + (Number(m.days) || 0) * (Number(m.rate) || 0), 0);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2 mb-2">
-        <Building2 className="w-4 h-4 text-blue-400" />
-        <span className="text-sm font-medium text-blue-400">甲方合同（主合同）</span>
-        <span className="text-xs text-slate-500">· 外协合同在项目执行阶段创建</span>
+    <div className="border border-slate-700 rounded-xl p-4 space-y-4 bg-slate-900/40">
+      {/* 合同头部 */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-slate-400">合同 {index + 1}</span>
+          <select
+            value={contract.contractSubtype}
+            onChange={e => onChange({ ...contract, contractSubtype: e.target.value as SingleContractData['contractSubtype'] })}
+            className="text-xs bg-slate-800 border border-slate-700 text-slate-300 rounded px-2 py-0.5 focus:outline-none"
+          >
+            <option value="主合同">主合同</option>
+            <option value="补充协议">补充协议</option>
+            <option value="变更协议">变更协议</option>
+          </select>
+        </div>
+        {total > 1 && (
+          <button onClick={onRemove} className="text-slate-600 hover:text-red-400 transition-colors">
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
       </div>
-      <div className="grid grid-cols-2 gap-4">
+
+      {/* 基本信息 */}
+      <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2">
-          <Label className="text-slate-300 text-sm">合同名称 <span className="text-red-400">*</span></Label>
-          <Input value={data.contractName} onChange={e => onChange({ ...data, contractName: e.target.value })}
+          <Label className="text-slate-300 text-sm">合同名称<span className="text-red-400">*</span></Label>
+          <Input value={contract.contractName} onChange={e => onChange({ ...contract, contractName: e.target.value })}
             placeholder="如：XX系统开发合同" className="mt-1 bg-slate-800 border-slate-700 text-slate-100" />
         </div>
         <div>
           <Label className="text-slate-300 text-sm">合同编号</Label>
-          <Input value={data.contractNo} onChange={e => onChange({ ...data, contractNo: e.target.value })}
+          <Input value={contract.contractNo} onChange={e => onChange({ ...contract, contractNo: e.target.value })}
             placeholder="如：HT-2026-001" className="mt-1 bg-slate-800 border-slate-700 text-slate-100" />
         </div>
         <div>
           <Label className="text-slate-300 text-sm">甲方（客户）<span className="text-red-400">*</span></Label>
-          <Input value={data.client} onChange={e => onChange({ ...data, client: e.target.value })}
+          <Input value={contract.client} onChange={e => onChange({ ...contract, client: e.target.value })}
             placeholder="客户公司名称" className="mt-1 bg-slate-800 border-slate-700 text-slate-100" />
         </div>
         <div>
           <Label className="text-slate-300 text-sm">合同金额（元）<span className="text-red-400">*</span></Label>
-          <Input type="number" value={data.amount} onChange={e => onChange({ ...data, amount: e.target.value })}
+          <Input type="number" value={contract.amount} onChange={e => onChange({ ...contract, amount: e.target.value })}
             placeholder="如 500000" className="mt-1 bg-slate-800 border-slate-700 text-slate-100" />
         </div>
         <div>
           <Label className="text-slate-300 text-sm">签订日期</Label>
-          <Input type="date" value={data.signDate} onChange={e => onChange({ ...data, signDate: e.target.value })}
+          <Input type="date" value={contract.signDate} onChange={e => onChange({ ...contract, signDate: e.target.value })}
             className="mt-1 bg-slate-800 border-slate-700 text-slate-100" />
         </div>
         <div>
           <Label className="text-slate-300 text-sm">合同开始日期</Label>
-          <Input type="date" value={data.startDate} onChange={e => onChange({ ...data, startDate: e.target.value })}
+          <Input type="date" value={contract.startDate} onChange={e => onChange({ ...contract, startDate: e.target.value })}
             className="mt-1 bg-slate-800 border-slate-700 text-slate-100" />
         </div>
         <div>
           <Label className="text-slate-300 text-sm">合同结束日期</Label>
-          <Input type="date" value={data.endDate} onChange={e => onChange({ ...data, endDate: e.target.value })}
+          <Input type="date" value={contract.endDate} onChange={e => onChange({ ...contract, endDate: e.target.value })}
             className="mt-1 bg-slate-800 border-slate-700 text-slate-100" />
         </div>
         <div className="col-span-2">
           <Label className="text-slate-300 text-sm">合同信息</Label>
-          <Textarea value={data.contractInfo} onChange={e => onChange({ ...data, contractInfo: e.target.value })}
+          <Textarea value={contract.contractInfo} onChange={e => onChange({ ...contract, contractInfo: e.target.value })}
             placeholder="合同主要内容描述..." rows={2}
             className="mt-1 bg-slate-800 border-slate-700 text-slate-100 resize-none" />
         </div>
         <div className="col-span-2">
           <Label className="text-slate-300 text-sm">合同备注</Label>
-          <Textarea value={data.remark} onChange={e => onChange({ ...data, remark: e.target.value })}
+          <Textarea value={contract.remark} onChange={e => onChange({ ...contract, remark: e.target.value })}
             placeholder="特殊条款、注意事项等..." rows={2}
             className="mt-1 bg-slate-800 border-slate-700 text-slate-100 resize-none" />
         </div>
       </div>
 
-      {/* 分期节点 */}
+      {/* 收款分期节点 */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <Label className="text-slate-300 text-sm flex items-center gap-2">
@@ -297,7 +338,7 @@ function Step2({ data, onChange }: { data: ContractData; onChange: (d: ContractD
             <Plus className="w-3.5 h-3.5" /> 添加节点
           </Button>
         </div>
-        {data.stages.length === 0 ? (
+        {contract.stages.length === 0 ? (
           <div className="text-center py-3 text-slate-600 text-sm border border-dashed border-slate-700 rounded-lg">
             暂无分期节点，点击「添加节点」
           </div>
@@ -309,7 +350,7 @@ function Step2({ data, onChange }: { data: ContractData; onChange: (d: ContractD
               <div className="col-span-3">到期日</div>
               <div className="col-span-1"></div>
             </div>
-            {data.stages.map((s, idx) => (
+            {contract.stages.map((s, idx) => (
               <div key={idx} className="grid grid-cols-12 gap-2 items-center p-2 rounded-lg bg-slate-800/60 border border-slate-700/50">
                 <div className="col-span-4">
                   <Input value={s.name} onChange={e => updateStage(idx, 'name', e.target.value)}
@@ -333,6 +374,128 @@ function Step2({ data, onChange }: { data: ContractData; onChange: (d: ContractD
           </div>
         )}
       </div>
+
+      {/* 人员人天规划 */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <Label className="text-slate-300 text-sm flex items-center gap-2">
+              <Users className="w-4 h-4 text-blue-400" /> 人员人天规划
+              <span className="text-xs text-slate-500 font-normal">（内部成本核算，不对外）</span>
+            </Label>
+            {totalCost > 0 && (
+              <div className="text-xs text-slate-400 mt-0.5">
+                人力成本合计：<span className="text-blue-300 font-medium">¥{totalCost.toLocaleString()}</span>
+                {contract.amount && Number(contract.amount) > 0 && (
+                  <span className="ml-2 text-slate-500">
+                    占合同 {((totalCost / Number(contract.amount)) * 100).toFixed(0)}%
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+          <Button size="sm" variant="outline" onClick={addMember}
+            className="border-slate-600 text-slate-300 hover:bg-slate-800 h-7 text-xs gap-1">
+            <Plus className="w-3.5 h-3.5" /> 添加人员
+          </Button>
+        </div>
+        {contract.members.length === 0 ? (
+          <div className="text-center py-3 text-slate-600 text-sm border border-dashed border-slate-700 rounded-lg">
+            暂无人员规划，点击「添加人员」
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <div className="grid grid-cols-12 gap-2 px-2 text-xs text-slate-500">
+              <div className="col-span-3">姓名</div>
+              <div className="col-span-3">角色/工种</div>
+              <div className="col-span-2 text-center">人天数</div>
+              <div className="col-span-3 text-center">日费率(元)</div>
+              <div className="col-span-1"></div>
+            </div>
+            {contract.members.map((m, idx) => (
+              <div key={idx} className="grid grid-cols-12 gap-2 items-center p-2 rounded-lg bg-slate-800/60 border border-slate-700/50">
+                <div className="col-span-3">
+                  <Input value={m.name} onChange={e => updateMember(idx, 'name', e.target.value)}
+                    placeholder="如：张伟" className="bg-slate-900 border-slate-700 text-slate-100 text-sm h-7" />
+                </div>
+                <div className="col-span-3">
+                  <Input value={m.role} onChange={e => updateMember(idx, 'role', e.target.value)}
+                    placeholder="如：前端开发" className="bg-slate-900 border-slate-700 text-slate-100 text-sm h-7" />
+                </div>
+                <div className="col-span-2">
+                  <Input type="number" value={m.days} onChange={e => updateMember(idx, 'days', e.target.value)}
+                    placeholder="0" min="0"
+                    className="bg-slate-900 border-slate-700 text-slate-100 text-sm h-7 text-center" />
+                </div>
+                <div className="col-span-3">
+                  <Input type="number" value={m.rate} onChange={e => updateMember(idx, 'rate', e.target.value)}
+                    placeholder="0" min="0"
+                    className="bg-slate-900 border-slate-700 text-slate-100 text-sm h-7 text-center" />
+                </div>
+                <div className="col-span-1 flex justify-center">
+                  <button onClick={() => removeMember(idx)} className="text-slate-600 hover:text-red-400 transition-colors">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Step2({ data, onChange }: { data: ContractData; onChange: (d: ContractData) => void }) {
+  const addContract = () => {
+    onChange({ contracts: [...data.contracts, { ...EMPTY_SINGLE_CONTRACT }] });
+  };
+  const updateContract = (i: number, c: SingleContractData) => {
+    const cs = [...data.contracts]; cs[i] = c;
+    onChange({ contracts: cs });
+  };
+  const removeContract = (i: number) => {
+    if (data.contracts.length <= 1) return;
+    onChange({ contracts: data.contracts.filter((_, idx) => idx !== i) });
+  };
+
+  const totalAmount = data.contracts.reduce((s, c) => s + (Number(c.amount) || 0), 0);
+
+  return (
+    <div className="space-y-4">
+      {/* 标题区 */}
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-blue-400 text-xs font-medium mb-1">
+            <FileText className="w-3.5 h-3.5" />
+            甲方合同（收款合同）· 外协合同在项目执行阶段创建
+          </div>
+          {totalAmount > 0 && (
+            <div className="text-xs text-slate-400">
+              合同总金额：<span className="text-emerald-400 font-medium">¥{totalAmount.toLocaleString()}</span>
+              <span className="text-slate-500 ml-1">（{data.contracts.length} 份）</span>
+            </div>
+          )}
+        </div>
+        <Button size="sm" variant="outline" onClick={addContract}
+          className="border-slate-600 text-slate-300 hover:bg-slate-800 h-7 text-xs gap-1">
+          <Plus className="w-3.5 h-3.5" /> 添加合同
+        </Button>
+      </div>
+
+      {/* 合同列表 */}
+      <div className="space-y-4">
+        {data.contracts.map((c, i) => (
+          <SingleContractForm
+            key={i}
+            contract={c}
+            index={i}
+            total={data.contracts.length}
+            onChange={nc => updateContract(i, nc)}
+            onRemove={() => removeContract(i)}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -350,8 +513,8 @@ function Step3({ data, onChange, projectData, contractData }:
           <div><span className="text-slate-500">项目类型：</span><span className="text-slate-200">{projectData.type || '—'}</span></div>
           <div><span className="text-slate-500">项目经理：</span><span className="text-slate-200">{projectData.manager}</span></div>
           <div><span className="text-slate-500">成员数量：</span><span className="text-slate-200">{projectData.members.length} 人</span></div>
-          <div><span className="text-slate-500">合同名称：</span><span className="text-slate-200">{contractData.contractName || '—'}</span></div>
-          <div><span className="text-slate-500">合同金额：</span><span className="text-green-400 font-semibold">¥{Number(contractData.amount || 0).toLocaleString()}</span></div>
+          <div><span className="text-slate-500">合同名称：</span><span className="text-slate-200">{contractData.contracts[0]?.contractName || '—'}</span></div>
+          <div><span className="text-slate-500">合同总额：</span><span className="text-green-400 font-semibold">¥{contractData.contracts.reduce((s,c)=>s+(Number(c.amount)||0),0).toLocaleString()}</span></div>
         </div>
       </div>
       <div>
@@ -399,9 +562,9 @@ function Step4({ projectData, contractData, reviewData, onConfirm, confirmed }:
         <div>
           <h4 className="text-slate-400 text-xs uppercase tracking-wider mb-2">合同信息</h4>
           <div className="grid grid-cols-2 gap-2">
-            <div className="col-span-2"><span className="text-slate-500">合同名称：</span><span className="text-slate-200">{contractData.contractName}</span></div>
-            <div><span className="text-slate-500">甲方：</span><span className="text-slate-200">{contractData.client}</span></div>
-            <div><span className="text-slate-500">金额：</span><span className="text-green-400 font-semibold">¥{Number(contractData.amount || 0).toLocaleString()}</span></div>
+            <div className="col-span-2"><span className="text-slate-500">合同（{contractData.contracts.length}份）：</span><span className="text-slate-200">{contractData.contracts.map(c=>c.contractName||c.contractSubtype).join('、')}</span></div>
+            <div><span className="text-slate-500">甲方：</span><span className="text-slate-200">{contractData.contracts[0]?.client || '—'}</span></div>
+            <div><span className="text-slate-500">合同总额：</span><span className="text-green-400 font-semibold">¥{contractData.contracts.reduce((s,c)=>s+(Number(c.amount)||0),0).toLocaleString()}</span></div>
           </div>
         </div>
         <div>
@@ -452,8 +615,8 @@ function Step5({ projectData, contractData, onSign }:
           <Badge className="bg-blue-500/20 text-blue-300 border-0">{projectData.type}</Badge>
         </div>
         <div className="grid grid-cols-2 gap-2 text-xs">
-          <div><span className="text-slate-500">甲方：</span><span className="text-slate-300">{contractData.client}</span></div>
-          <div><span className="text-slate-500">合同金额：</span><span className="text-green-400 font-semibold">¥{Number(contractData.amount || 0).toLocaleString()}</span></div>
+          <div><span className="text-slate-500">甲方：</span><span className="text-slate-300">{contractData.contracts[0]?.client || '—'}</span></div>
+          <div><span className="text-slate-500">合同总额：</span><span className="text-green-400 font-semibold">¥{contractData.contracts.reduce((s,c)=>s+(Number(c.amount)||0),0).toLocaleString()}</span></div>
           <div><span className="text-slate-500">PM：</span><span className="text-slate-300">{projectData.manager}</span></div>
           <div><span className="text-slate-500">成员：</span><span className="text-slate-300">{projectData.members.length} 人</span></div>
           <div><span className="text-slate-500">周期：</span><span className="text-slate-300">{projectData.startDate} ~ {projectData.endDate}</span></div>
@@ -492,8 +655,7 @@ export default function NewProjectPage({ onBack, onContractCreated }: NewProject
     name: '', type: '', manager: '张伟', startDate: '', endDate: '', budget: '', description: '', members: []
   });
   const [step2, setStep2] = useState<ContractData>({
-    contractName: '', contractNo: '', client: '', amount: '', signDate: '', startDate: '', endDate: '',
-    contractInfo: '', remark: '', stages: []
+    contracts: [{ ...EMPTY_SINGLE_CONTRACT }]
   });
   const [step3, setStep3] = useState<Step3Data>({ reviewer: '', reviewNote: '' });
 
@@ -509,9 +671,10 @@ export default function NewProjectPage({ onBack, onContractCreated }: NewProject
       if (!step1.startDate || !step1.endDate) { toast.error('请填写项目计划时间'); return; }
     }
     if (step === 2) {
-      if (!step2.contractName.trim()) { toast.error('请填写合同名称'); return; }
-      if (!step2.client.trim()) { toast.error('请填写甲方名称'); return; }
-      if (!step2.amount || Number(step2.amount) <= 0) { toast.error('请填写合同金额'); return; }
+      const first = step2.contracts[0];
+      if (!first || !first.contractName.trim()) { toast.error('请填写合同名称'); return; }
+      if (!first.client.trim()) { toast.error('请填写甲方名称'); return; }
+      if (!first.amount || Number(first.amount) <= 0) { toast.error('请填写合同金额'); return; }
     }
     if (step === 3) {
       if (!step3.reviewer) { toast.error('请指定审核人'); return; }
@@ -523,35 +686,40 @@ export default function NewProjectPage({ onBack, onContractCreated }: NewProject
   const handleSign = () => {
     setDone(true);
     toast.success(`项目「${step1.name}」已正式立项！`);
-    // 立项完成 → 自动将甲方合同写入合同台账
-    if (onContractCreated && step2.contractName && step2.client && step2.amount) {
+    // 立项完成 → 自动将所有甲方合同写入合同台账
+    if (onContractCreated) {
       const now = new Date().toISOString().slice(0, 10);
-      const uid = String(Date.now()).slice(-4);
-      const newContract: Contract = {
-        id: `CON-NEW-${uid}`,
-        contractNo: step2.contractNo || `HT-${new Date().getFullYear()}-${uid}`,
-        contractName: step2.contractName,
-        contractInfo: step2.contractInfo || '',
-        remark: step2.remark || '',
-        projectId: `PRJ-NEW-${uid}`,
-        projectName: step1.name,
-        type: '甲方合同',
-        vendor: step2.client,
-        amount: Number(step2.amount),
-        signDate: step2.signDate || now,
-        startDate: step2.startDate || step1.startDate,
-        endDate: step2.endDate || step1.endDate,
-        status: '待签署',
-        paidAmount: 0,
-        pendingAmount: Number(step2.amount),
-        stages: step2.stages.map(s => ({
-          name: s.name,
-          amount: Number(s.amount) || 0,
-          dueDate: s.dueDate,
-          status: '未回款' as const,
-        })),
-      };
-      onContractCreated(newContract);
+      const baseUid = String(Date.now()).slice(-4);
+      const projectId = `PRJ-NEW-${baseUid}`;
+      step2.contracts.forEach((c, idx) => {
+        if (!c.contractName || !c.client || !c.amount) return;
+        const uid = `${baseUid}-${idx}`;
+        const newContract: Contract = {
+          id: `CON-NEW-${uid}`,
+          contractNo: c.contractNo || `HT-${new Date().getFullYear()}-${uid}`,
+          contractName: c.contractName + (c.contractSubtype !== '主合同' ? `（${c.contractSubtype}）` : ''),
+          contractInfo: c.contractInfo || '',
+          remark: c.remark || '',
+          projectId,
+          projectName: step1.name,
+          type: '甲方合同',
+          vendor: c.client,
+          amount: Number(c.amount),
+          signDate: c.signDate || now,
+          startDate: c.startDate || step1.startDate,
+          endDate: c.endDate || step1.endDate,
+          status: '待签署',
+          paidAmount: 0,
+          pendingAmount: Number(c.amount),
+          stages: c.stages.map(s => ({
+            name: s.name,
+            amount: Number(s.amount) || 0,
+            dueDate: s.dueDate,
+            status: '未回款' as const,
+          })),
+        };
+        onContractCreated(newContract);
+      });
     }
     const t = setTimeout(() => navigate('/projects'), 4000);
     setJumpTimer(t);

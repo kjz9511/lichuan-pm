@@ -768,11 +768,14 @@ export default function ContractsPage() {
       </div>
 
       {/* 说明提示 */}
-      <div className="flex items-start gap-2 bg-blue-600/10 border border-blue-500/20 rounded-lg px-3 py-2">
-        <Building2 className="w-3.5 h-3.5 text-blue-400 mt-0.5 shrink-0" />
-        <div className="text-xs text-blue-300/80 leading-relaxed">
-          <span className="font-medium text-blue-400">甲方合同</span>（主合同）在项目立项时绑定，是与客户签订的收款合同；
-          <span className="font-medium text-amber-400 ml-1">外协合同</span>（子合同）在项目执行阶段创建，挂靠在对应主合同下，是分包给外部供应商的付款合同。
+      <div className="flex items-start gap-2 bg-secondary/50 border border-border/60 rounded-lg px-3 py-2.5">
+        <Building2 className="w-3.5 h-3.5 text-muted-foreground mt-0.5 shrink-0" />
+        <div className="text-xs text-muted-foreground leading-relaxed">
+          每个立项下可关联多份
+          <span className="inline-flex items-center gap-0.5 font-medium text-emerald-400 mx-1"><span className="text-[9px]">↑</span>甲方合同（收款）</span>
+          和多份
+          <span className="inline-flex items-center gap-0.5 font-medium text-amber-400 mx-1"><span className="text-[9px]">↓</span>外协合同（付款）</span>
+          ，两者均平级挂在项目下。甲方合同在立项时填写，外协合同在项目执行中由 PM 发起。
         </div>
       </div>
 
