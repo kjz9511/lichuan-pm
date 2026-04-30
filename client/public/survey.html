@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>厉川外包项目管理系统 · 调研问卷</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --blue: #3b82f6;
+      --blue-bg: rgba(59,130,246,0.15);
+      --blue-border: rgba(59,130,246,0.4);
+      --green: #10b981;
+      --green-bg: rgba(16,185,129,0.15);
+      --slate-input: #1e293b;
+      --slate-hover: #2d3f55;
+      --red: #f87171;
+    }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      padding: 24px 16px 48px;
+    }
+    .container { max-width: 640px; margin: 0 auto; }
+    .header {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 24px;
+    }
+    .header-icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: var(--blue-bg); border: 1px solid var(--blue-border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; flex-shrink: 0;
+    }
+    .header-title { font-size: 17px; font-weight: 700; }
+    .header-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    /* 进度条 */
+    .progress { display: flex; align-items: center; gap: 6px; margin-bottom: 20px; }
+    .progress-bar { flex: 1; height: 4px; border-radius: 4px; background: #334155; transition: background 0.3s; }
+    .progress-bar.active { background: var(--blue); }
+    .progress-label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+    /* 卡片 */
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 14px; padding: 24px; margin-bottom: 16px;
+    }
+    .card-title { font-size: 14px; font-weight: 600; margin-bottom: 20px; }
+    /* 字段 */
+    .field { margin-bottom: 20px; }
+    .field:last-child { margin-bottom: 0; }
+    .label { font-size: 12px; color: var(--muted); margin-bottom: 8px; display: block; }
+    .required { color: var(--red); }
+    input[type="text"], textarea {
+      width: 100%; background: #0f172a; border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 12px; font-size: 14px;
+      color: var(--text); outline: none; transition: border-color 0.2s;
+      font-family: inherit;
+    }
+    input[type="text"]:focus, textarea:focus { border-color: var(--blue); }
+    input[type="text"]::placeholder, textarea::placeholder { color: #475569; }
+    textarea { resize: none; }
+    /* 角色选项 */
+    .role-options { display: flex; flex-direction: column; gap: 8px; }
+    .role-btn {
+      text-align: left; padding: 11px 16px; border-radius: 8px;
+      border: 1px solid var(--border); background: #0f172a;
+      color: #cbd5e1; font-size: 14px; cursor: pointer;
+      transition: all 0.15s; font-family: inherit;
+    }
+    .role-btn:hover { border-color: #475569; }
+    .role-btn.selected { background: var(--blue-bg); border-color: var(--blue-border); color: #93c5fd; }
+    /* 评分 */
+    .rating-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .rating-btn {
+      width: 38px; height: 38px; border-radius: 8px;
+      border: 1px solid var(--border); background: #0f172a;
+      color: var(--muted); font-size: 13px; font-weight: 700;
+      cursor: pointer; transition: all 0.15s; font-family: inherit;
+    }
+    .rating-btn:hover { border-color: rgba(59,130,246,0.5); color: #93c5fd; }
+    .rating-btn.selected { background: var(--blue); border-color: var(--blue); color: #fff; transform: scale(1.1); }
+    .rating-label { font-size: 12px; color: var(--muted); margin-left: 4px; }
+    /* 功能评分列表 */
+    .feature-list { display: flex; flex-direction: column; gap: 16px; }
+    .feature-item {}
+    .feature-name { font-size: 13px; font-weight: 500; margin-bottom: 8px; }
+    /* 按钮 */
+    .btn-row { display: flex; gap: 10px; margin-top: 24px; }
+    .btn {
+      flex: 1; padding: 11px; border-radius: 8px; border: none;
+      font-size: 14px; font-weight: 500; cursor: pointer;
+      transition: all 0.15s; font-family: inherit;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .btn-secondary { background: #1e293b; color: #cbd5e1; border: 1px solid var(--border); }
+    .btn-secondary:hover { background: #2d3f55; }
+    .btn-primary { background: var(--blue); color: #fff; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-primary:disabled { background: #1e293b; color: #475569; cursor: not-allowed; }
+    .btn-success { background: var(--green); color: #fff; }
+    .btn-success:hover { background: #059669; }
+    /* 成功页 */
+    .success-page {
+      min-height: 80vh; display: flex; align-items: center; justify-content: center;
+    }
+    .success-inner { text-align: center; max-width: 360px; }
+    .success-icon {
+      width: 64px; height: 64px; border-radius: 50%;
+      background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.4);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 30px; margin: 0 auto 20px;
+    }
+    .success-title { font-size: 20px; font-weight: 700; margin-bottom: 10px; }
+    .success-desc { font-size: 14px; color: var(--muted); line-height: 1.7; }
+    .footer { text-align: center; font-size: 12px; color: #475569; margin-top: 24px; }
+    /* 隐藏 */
+    .hidden { display: none !important; }
+    /* toast */
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: #1e293b; border: 1px solid var(--border); border-radius: 10px;
+      padding: 10px 18px; font-size: 13px; color: var(--text);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4); z-index: 999;
+      transition: opacity 0.3s; opacity: 0; pointer-events: none;
+    }
+    .toast.show { opacity: 1; }
+    .toast.error { border-color: rgba(248,113,113,0.5); color: var(--red); }
+  </style>
+</head>
+<body>
+<div class="container">
+  <!-- Header -->
+  <div class="header">
+    <div class="header-icon">📋</div>
+    <div>
+      <div class="header-title">厉川外包项目管理系统 · 调研问卷</div>
+      <div class="header-sub">预计填写时间 3～5 分钟，感谢您的参与</div>
+    </div>
+  </div>
+
+  <!-- 进度条 -->
+  <div class="progress" id="progressBar">
+    <div class="progress-bar active" id="pb1"></div>
+    <div class="progress-bar" id="pb2"></div>
+    <div class="progress-bar" id="pb3"></div>
+    <span class="progress-label" id="progressLabel">1 / 3</span>
+  </div>
+
+  <!-- Step 1: 基本信息 -->
+  <div class="card" id="step1">
+    <div class="card-title">第一步：基本信息</div>
+    <div class="field">
+      <label class="label">您的姓名（选填）</label>
+      <input type="text" id="name" placeholder="方便后续跟进反馈" />
+    </div>
+    <div class="field">
+      <label class="label">您在公司的角色 <span class="required">*</span></label>
+      <div class="role-options" id="roleOptions">
+        <button class="role-btn" onclick="selectRole(this, '老板 / 管理层')">老板 / 管理层</button>
+        <button class="role-btn" onclick="selectRole(this, '项目经理（PM）')">项目经理（PM）</button>
+        <button class="role-btn" onclick="selectRole(this, '财务 / 结算')">财务 / 结算</button>
+        <button class="role-btn" onclick="selectRole(this, '外包供应商 / 合作团队')">外包供应商 / 合作团队</button>
+        <button class="role-btn" onclick="selectRole(this, '其他')">其他</button>
+      </div>
+      <input type="text" id="roleOther" placeholder="请说明您的角色" class="hidden" style="margin-top:8px" />
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="goStep(2)">下一步 →</button>
+    </div>
+  </div>
+
+  <!-- Step 2: 功能评分 -->
+  <div class="card hidden" id="step2">
+    <div class="card-title">第二步：功能模块评分</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:16px">请对以下功能模块的实用性打分（1 很差 ～ 5 很好）</div>
+    <div class="feature-list" id="featureList"></div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="goStep(1)">← 上一步</button>
+      <button class="btn btn-primary" onclick="goStep(3)">下一步 →</button>
+    </div>
+  </div>
+
+  <!-- Step 3: 开放问题 -->
+  <div class="card hidden" id="step3">
+    <div class="card-title">第三步：开放反馈</div>
+    <div class="field">
+      <label class="label">您觉得系统缺少哪些功能？（选填）</label>
+      <textarea id="missing" rows="3" placeholder="例如：缺少工时统计、缺少微信通知提醒..."></textarea>
+    </div>
+    <div class="field">
+      <label class="label">您觉得哪些功能用不上或过于复杂？（选填）</label>
+      <textarea id="redundant" rows="3" placeholder="例如：供应商评分用不上、立项步骤太多..."></textarea>
+    </div>
+    <div class="field">
+      <label class="label">目前工作中最痛的管理问题是什么？（选填）</label>
+      <textarea id="pain" rows="3" placeholder="例如：合同找不到、不知道回款进度、外包商交付物乱..."></textarea>
+    </div>
+    <div class="field">
+      <label class="label">系统整体评分 <span class="required">*</span></label>
+      <div class="rating-row" id="overallRating">
+        <button class="rating-btn" onclick="selectOverall(this, 1)">1</button>
+        <button class="rating-btn" onclick="selectOverall(this, 2)">2</button>
+        <button class="rating-btn" onclick="selectOverall(this, 3)">3</button>
+        <button class="rating-btn" onclick="selectOverall(this, 4)">4</button>
+        <button class="rating-btn" onclick="selectOverall(this, 5)">5</button>
+        <span class="rating-label" id="overallLabel"></span>
+      </div>
+    </div>
+    <div class="field">
+      <label class="label">其他建议（选填）</label>
+      <textarea id="suggestion" rows="3" placeholder="任何想说的都可以写..."></textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="goStep(2)">← 上一步</button>
+      <button class="btn btn-success" onclick="submitForm()">提交反馈 ✓</button>
+    </div>
+  </div>
+
+  <!-- 成功页 -->
+  <div class="success-page hidden" id="successPage">
+    <div class="success-inner">
+      <div class="success-icon">✅</div>
+      <div class="success-title">感谢您的参与！</div>
+      <div class="success-desc">
+        您的反馈已记录，将作为系统优化和开发排期的重要依据。<br/>
+        如有补充，欢迎随时联系项目负责人。
+      </div>
+      <div style="margin-top:24px">
+        <button class="btn btn-secondary" style="display:inline-flex;width:auto;padding:10px 20px" onclick="resetForm()">重新填写</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">厉川外包项目管理平台 · 内部调研专用</div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+const FEATURES = [
+  { id: 'project', label: '项目立项与台账' },
+  { id: 'stage', label: '项目阶段推进' },
+  { id: 'contract', label: '合同管理（甲方 & 外协）' },
+  { id: 'invoice', label: '发票与结算审批' },
+  { id: 'milestone', label: '里程碑 & 交付物' },
+  { id: 'vendor', label: '供应商管理' },
+  { id: 'dashboard', label: '各角色仪表盘' },
+];
+const RATING_LABELS = ['', '很差', '较差', '一般', '较好', '很好'];
+
+let state = {
+  step: 1,
+  role: '',
+  ratings: {},
+  overall: 0,
+};
+
+// 初始化功能评分列表
+const featureList = document.getElementById('featureList');
+FEATURES.forEach(f => {
+  const item = document.createElement('div');
+  item.className = 'feature-item';
+  item.innerHTML = `
+    <div class="feature-name">${f.label}</div>
+    <div class="rating-row" id="rating_${f.id}">
+      ${[1,2,3,4,5].map(r => `<button class="rating-btn" onclick="selectFeature('${f.id}', ${r}, this)">${r}</button>`).join('')}
+      <span class="rating-label" id="rl_${f.id}"></span>
+    </div>
+  `;
+  featureList.appendChild(item);
+});
+
+function selectRole(btn, role) {
+  document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  state.role = role;
+  const other = document.getElementById('roleOther');
+  if (role === '其他') other.classList.remove('hidden');
+  else other.classList.add('hidden');
+}
+
+function selectFeature(id, val, btn) {
+  state.ratings[id] = val;
+  const row = document.getElementById('rating_' + id);
+  row.querySelectorAll('.rating-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  document.getElementById('rl_' + id).textContent = RATING_LABELS[val];
+}
+
+function selectOverall(btn, val) {
+  state.overall = val;
+  document.querySelectorAll('#overallRating .rating-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  document.getElementById('overallLabel').textContent = RATING_LABELS[val];
+}
+
+function updateProgress(step) {
+  for (let i = 1; i <= 3; i++) {
+    document.getElementById('pb' + i).classList.toggle('active', i <= step);
+  }
+  document.getElementById('progressLabel').textContent = step + ' / 3';
+}
+
+function showToast(msg, isError) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(() => { t.className = 'toast'; }, 2500);
+}
+
+function goStep(next) {
+  if (next === 2) {
+    if (!state.role) { showToast('请选择您的角色', true); return; }
+    if (state.role === '其他' && !document.getElementById('roleOther').value.trim()) {
+      showToast('请填写您的角色', true); return;
+    }
+  }
+  if (next === 3) {
+    const missing = FEATURES.filter(f => !state.ratings[f.id]);
+    if (missing.length > 0) { showToast('请为所有功能模块打分', true); return; }
+  }
+  state.step = next;
+  ['step1','step2','step3'].forEach((id, i) => {
+    document.getElementById(id).classList.toggle('hidden', i + 1 !== next);
+  });
+  updateProgress(next);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function submitForm() {
+  if (state.overall === 0) { showToast('请为系统整体打分', true); return; }
+  // 收集数据（实际项目中可发送到后端）
+  const data = {
+    name: document.getElementById('name').value,
+    role: state.role === '其他' ? document.getElementById('roleOther').value : state.role,
+    ratings: state.ratings,
+    missing: document.getElementById('missing').value,
+    redundant: document.getElementById('redundant').value,
+    pain: document.getElementById('pain').value,
+    overall: state.overall,
+    suggestion: document.getElementById('suggestion').value,
+    submittedAt: new Date().toLocaleString('zh-CN'),
+  };
+  console.log('问卷数据：', JSON.stringify(data, null, 2));
+  // 显示成功页
+  document.getElementById('step3').classList.add('hidden');
+  document.getElementById('progressBar').classList.add('hidden');
+  document.getElementById('successPage').classList.remove('hidden');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function resetForm() {
+  state = { step: 1, role: '', ratings: {}, overall: 0 };
+  document.getElementById('name').value = '';
+  document.getElementById('roleOther').value = '';
+  document.getElementById('missing').value = '';
+  document.getElementById('redundant').value = '';
+  document.getElementById('pain').value = '';
+  document.getElementById('suggestion').value = '';
+  document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('selected'));
+  document.querySelectorAll('.rating-btn').forEach(b => b.classList.remove('selected'));
+  document.querySelectorAll('.rating-label').forEach(b => b.textContent = '');
+  document.getElementById('overallLabel').textContent = '';
+  document.getElementById('roleOther').classList.add('hidden');
+  document.getElementById('successPage').classList.add('hidden');
+  document.getElementById('progressBar').classList.remove('hidden');
+  document.getElementById('step1').classList.remove('hidden');
+  document.getElementById('step2').classList.add('hidden');
+  document.getElementById('step3').classList.add('hidden');
+  updateProgress(1);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+</script>
+</body>
+</html>
