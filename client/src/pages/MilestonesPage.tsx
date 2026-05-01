@@ -2,7 +2,7 @@
 // 设计风格：深色专业管理台风，AI审核评分 + 状态管理
 // 功能：交付物上传（支持描述/类型）→ AI 自动审查（代码/日报/UI等）→ PM/老板人工通过/驳回
 import { cn } from '@/lib/utils';
-import { Bot, FileUp, Plus, Sparkles, CheckCircle2, XCircle, AlertTriangle, Upload, Archive, FolderOpen, FileText, ChevronDown, ChevronRight, ExternalLink, Search, X as XIcon } from 'lucide-react';
+import { Bot, FileUp, Sparkles, CheckCircle2, XCircle, AlertTriangle, Upload, Archive, FolderOpen, FileText, ChevronDown, ChevronRight, ExternalLink, Search, X as XIcon } from 'lucide-react';
 import { useState } from 'react';
 import { milestones as initialMilestones, projects, contracts } from '../lib/mockData';
 import { toast } from 'sonner';
@@ -247,6 +247,112 @@ function UploadDialog({ open, onClose, milestone, onSubmit }: UploadDialogProps)
             <Upload className="w-3 h-3" /> 提交并等待人工确认
            </button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── AI 健康度检查弹窗 ───────────────────────────────────────
+interface HealthCheckDialogProps {
+  open: boolean;
+  onClose: () => void;
+  milestones: MilestoneItem[];
+  projectName: string;
+}
+function HealthCheckDialog({ open, onClose, milestones, projectName }: HealthCheckDialogProps) {
+  const { run, loading, result, reset } = useAI({ stream: true, temperature: 0.3 });
+  const [started, setStarted] = useState(false);
+
+  const handleCheck = async () => {
+    setStarted(true);
+    reset();
+    const submitted = milestones.filter(m => m.aiScore !== undefined);
+    const summary = submitted.map(m =>
+      `- ${m.name}（${m.type}）| 状态: ${m.status} | AI评分: ${m.aiScore}分${m.issues?.length ? ' | 问题: ' + m.issues.join('；') : ''}`
+    ).join('\n');
+    const pending = milestones.filter(m => m.status === '待提交').map(m => `- ${m.name}（截止 ${m.dueDate}）`).join('\n');
+    await run([
+      {
+        role: 'system',
+        content: '你是一个专业的软件项目交付物健康度分析师。请根据提供的里程碑数据，输出简洁、专业的中文健康度报告。包含：总体健康度评分（100分制）、主要风险点、待提交节点预警、改进建议。使用 Markdown 格式输出。'
+      },
+      {
+        role: 'user',
+        content: `项目：${projectName}\n\n已提交交付物（${submitted.length}个）：\n${summary || '暂无'}\n\n待提交节点（${milestones.filter(m => m.status === '待提交').length}个）：\n${pending || '暂无'}\n\n请生成该项目交付物健康度报告。`
+      }
+    ]);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) { onClose(); setStarted(false); reset(); } }}>
+      <DialogContent className="bg-slate-900 border-slate-700 text-slate-100 max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogHeader className="shrink-0">
+          <DialogTitle className="text-slate-100 flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-purple-400" />
+            AI 交付物健康度检查
+            <span className="text-sm font-normal text-slate-400 ml-1">— {projectName}</span>
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto">
+          {!started ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
+                <Sparkles className="w-8 h-8 text-purple-400" />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-medium text-slate-200">将对当前项目的 <span className="text-purple-300">{milestones.length}</span> 个里程碑进行全面健康度评估</p>
+                <p className="text-xs text-slate-500 mt-1">包含 AI 评分分析、风险识别、待提交预警和改进建议</p>
+              </div>
+              <button
+                onClick={handleCheck}
+                className="flex items-center gap-2 px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg transition-colors"
+              >
+                <Sparkles className="w-4 h-4" />
+                开始 AI 分析
+              </button>
+            </div>
+          ) : loading ? (
+            <div className="space-y-2 p-1">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+                <span className="text-xs text-purple-300">AI 正在分析交付物健康度…</span>
+              </div>
+              {result ? (
+                <div className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap font-mono text-xs bg-slate-800/50 rounded-lg p-4">
+                  {result}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {[1,2,3,4].map(i => (
+                    <div key={i} className={`h-3 bg-slate-800 rounded animate-pulse`} style={{ width: `${60 + i * 8}%` }} />
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : result ? (
+            <div className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap bg-slate-800/50 rounded-lg p-4">
+              {result}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="shrink-0 pt-3 border-t border-slate-700/50 flex items-center justify-between">
+          {started && !loading && (
+            <button
+              onClick={() => { setStarted(false); reset(); }}
+              className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              重新分析
+            </button>
+          )}
+          <button
+            onClick={() => { onClose(); setStarted(false); reset(); }}
+            className="ml-auto px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm transition-colors"
+          >
+            关闭
+          </button>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -510,6 +616,7 @@ export default function MilestonesPage() {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [uploadTarget, setUploadTarget] = useState<MilestoneItem | null>(null);
   const [assetLibProject, setAssetLibProject] = useState<string | null>(null);
+  const [showHealthDialog, setShowHealthDialog] = useState(false);
 
   const filtered = milestoneList.filter(m => {
     const matchProject = filterProject === 'all' || m.projectId === filterProject;
@@ -575,11 +682,11 @@ export default function MilestonesPage() {
             项目资产库
           </button>
           <button
-            onClick={() => toast.info('新建里程碑功能将在二期上线')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-md transition-colors"
+            onClick={() => setShowHealthDialog(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 text-xs rounded-md transition-colors border border-purple-500/30"
           >
-            <Plus className="w-3.5 h-3.5" />
-            新建里程碑
+            <Sparkles className="w-3.5 h-3.5" />
+            AI 检查健康度
           </button>
         </div>
       </div>
@@ -694,6 +801,17 @@ export default function MilestonesPage() {
           milestoneList={milestoneList}
         />
       )}
+      {/* AI 健康度检查弹窗 */}
+      <HealthCheckDialog
+        open={showHealthDialog}
+        onClose={() => setShowHealthDialog(false)}
+        milestones={filtered}
+        projectName={
+          filterProject !== 'all'
+            ? (projects.find(p => p.id === filterProject)?.name || '全部项目')
+            : '全部项目'
+        }
+      />
     </div>
   );
 }
