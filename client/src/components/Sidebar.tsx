@@ -3,6 +3,7 @@
 
 import { cn } from '@/lib/utils';
 import {
+  Archive,
   BarChart3,
   Bell,
   BookOpen,
@@ -31,6 +32,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { id: 'dashboard',     label: '仪表盘',         icon: LayoutDashboard, roles: ['boss', 'pm', 'pm2', 'pm3', 'vendor', 'finance'] },
+  { id: 'pre-projects',  label: '预立项管理',     icon: Archive,         roles: ['boss', 'pm', 'pm2', 'pm3'] },
   { id: 'projects',      label: '项目台账',       icon: FolderOpen,      roles: ['boss', 'pm', 'pm2', 'pm3', 'finance'] },
   { id: 'milestones',    label: '里程碑 & 交付物', icon: ClipboardList,   roles: ['boss', 'pm', 'pm2', 'pm3', 'vendor'] },
   { id: 'contracts',     label: '合同管理',       icon: FileText,        roles: ['boss', 'pm', 'pm2', 'pm3', 'finance'] },

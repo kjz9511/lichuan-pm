@@ -1,7 +1,8 @@
 // 设计风格：深色专业管理台风 - 新建项目立项单
-// 五步立项流程：1.填写基本信息 2.填写公司合同 3.提交审核 4.项目经理确认 5.老板签字
+// 四步立项流程：1.填写基本信息 2.填写公司合同 3.AI风险审核 4.PM确认并通知老板
 
 import { useState } from 'react';
+import { useAI } from '../hooks/useAI';
 import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,8 +12,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, ArrowRight, CheckCircle2, Circle, FileText, Users, ClipboardCheck,
-  UserCheck, PenLine, Plus, Trash2, Building2, Calendar, DollarSign, Lock
+  ArrowLeft, ArrowRight, CheckCircle2, Circle, FileText, Users,
+  UserCheck, Bot, Plus, Trash2, Building2, DollarSign, Lock,
+  AlertTriangle, ShieldCheck, RefreshCw, Bell, Loader2,
+  Paperclip, Link2, Sparkles, X
 } from 'lucide-react';
 
 // ── 人员池 ──────────────────────────────────────────────────
@@ -44,9 +47,8 @@ interface SingleContractData {
 const STEPS = [
   { id: 1, label: '项目信息', icon: FileText, desc: '填写项目基本信息与成员' },
   { id: 2, label: '公司合同', icon: Building2, desc: '录入甲方合同信息' },
-  { id: 3, label: '提交审核', icon: ClipboardCheck, desc: '指定审核人并提交' },
-  { id: 4, label: 'PM确认', icon: UserCheck, desc: '项目经理确认立项信息' },
-  { id: 5, label: '老板签字', icon: PenLine, desc: '老板最终审批签字' },
+  { id: 3, label: 'AI 风险审核', icon: Bot, desc: 'AI 自动分析项目风险并给出建议' },
+  { id: 4, label: 'PM确认 & 通知', icon: UserCheck, desc: 'PM 确认立项信息，系统自动通知老板' },
 ];
 
 // ── 步骤指示器 ──────────────────────────────────────────────
@@ -79,11 +81,192 @@ function StepIndicator({ current }: { current: number }) {
   );
 }
 
+
+// ── 附件区块（三种来源：上传/引用预立项/AI生成）────────────────────
+interface Attachment {
+  id: string;
+  name: string;
+  source: 'upload' | 'preproject' | 'ai';
+  size?: string;
+  type?: string;
+  preProjectId?: string;
+  preProjectName?: string;
+}
+
+const MOCK_PRE_PROJECTS = [
+  { id: 'pp1', name: '智慧园区项目预立项', docs: [
+    { id: 'd1', name: '需求调研报告.docx', type: 'docx', size: '2.3MB' },
+    { id: 'd2', name: '技术预研报告.pdf', type: 'pdf', size: '4.1MB' },
+    { id: 'd3', name: '可行性研究报告.pdf', type: 'pdf', size: '3.8MB' },
+  ]},
+  { id: 'pp2', name: '供应链管理系统预立项', docs: [
+    { id: 'd4', name: '现有系统评估报告.pdf', type: 'pdf', size: '1.8MB' },
+    { id: 'd5', name: '需求规格说明书.docx', type: 'docx', size: '5.2MB' },
+  ]},
+];
+
+const AI_DOC_TEMPLATES = [
+  { id: 'ai1', name: '项目立项申请书（AI生成）', desc: '包含项目背景、目标、范围、风险分析' },
+  { id: 'ai2', name: '需求规格说明书模板（AI生成）', desc: '标准化需求文档框架，含功能清单' },
+  { id: 'ai3', name: '项目计划书（AI生成）', desc: '里程碑计划、资源分配、风险管控' },
+  { id: 'ai4', name: '合同附件清单（AI生成）', desc: '合同配套文件标准清单' },
+];
+
+function AttachmentBlock({
+  attachments,
+  onChange,
+  context,
+}: {
+  attachments: Attachment[];
+  onChange: (list: Attachment[]) => void;
+  context: string;
+}) {
+  const [tab, setTab] = useState<'upload' | 'preproject' | 'ai'>('upload');
+  const [selectedPP, setSelectedPP] = useState('');
+  const [uploadName, setUploadName] = useState('');
+  const [generatingId, setGeneratingId] = useState<string | null>(null);
+
+  const add = (a: Attachment) => {
+    if (attachments.find(x => x.id === a.id)) { toast.info('该文件已添加'); return; }
+    onChange([...attachments, a]);
+    toast.success(`已添加：${a.name}`);
+  };
+
+  const remove = (id: string) => onChange(attachments.filter(a => a.id !== id));
+
+  const handleUpload = () => {
+    if (!uploadName.trim()) { toast.error('请输入文件名'); return; }
+    const name = uploadName.includes('.') ? uploadName : uploadName + '.pdf';
+    add({ id: 'up-' + Date.now(), name, source: 'upload', size: '—', type: name.split('.').pop() });
+    setUploadName('');
+  };
+
+  const handleGenerate = async (tpl: typeof AI_DOC_TEMPLATES[0]) => {
+    setGeneratingId(tpl.id);
+    await new Promise(r => setTimeout(r, 1200));
+    add({ id: tpl.id + '-' + Date.now(), name: tpl.name, source: 'ai', type: 'docx', size: 'AI生成' });
+    setGeneratingId(null);
+  };
+
+  const pp = MOCK_PRE_PROJECTS.find(p => p.id === selectedPP);
+
+  return (
+    <div className="mt-5 border-t border-slate-700/50 pt-4">
+      <div className="flex items-center gap-2 mb-3">
+        <Paperclip className="w-4 h-4 text-slate-400" />
+        <span className="text-sm font-medium text-slate-300">关联附件</span>
+        <span className="text-xs text-slate-500 ml-1">（{context}）</span>
+        {attachments.length > 0 && (
+          <span className="ml-auto text-xs text-blue-400">{attachments.length} 个文件</span>
+        )}
+      </div>
+
+      {/* 已添加的附件列表 */}
+      {attachments.length > 0 && (
+        <div className="mb-3 space-y-1.5">
+          {attachments.map(a => (
+            <div key={a.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/60 border border-slate-700/40 text-xs">
+              <span className={`px-1.5 py-0.5 rounded font-mono uppercase text-[10px] ${
+                a.source === 'ai' ? 'bg-purple-500/20 text-purple-300' :
+                a.source === 'preproject' ? 'bg-blue-500/20 text-blue-300' :
+                'bg-slate-600/40 text-slate-400'
+              }`}>
+                {a.source === 'ai' ? 'AI' : a.source === 'preproject' ? '引用' : a.type || 'file'}
+              </span>
+              <span className="text-slate-200 flex-1 truncate">{a.name}</span>
+              {a.size && <span className="text-slate-500">{a.size}</span>}
+              <button onClick={() => remove(a.id)} className="text-slate-600 hover:text-red-400 transition-colors ml-1">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 三个 Tab */}
+      <div className="flex gap-1 mb-3">
+        {([
+          { key: 'upload', label: '上传文件', icon: Paperclip },
+          { key: 'preproject', label: '引用预立项资料', icon: Link2 },
+          { key: 'ai', label: 'AI 生成文档', icon: Sparkles },
+        ] as const).map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs transition-colors ${
+              tab === t.key ? 'bg-blue-600/20 text-blue-300 border border-blue-500/30' : 'text-slate-500 hover:text-slate-300'
+            }`}>
+            <t.icon className="w-3 h-3" /> {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* 上传文件 */}
+      {tab === 'upload' && (
+        <div className="flex gap-2">
+          <Input value={uploadName} onChange={e => setUploadName(e.target.value)}
+            placeholder="输入文件名（如：需求说明书.docx）"
+            className="bg-slate-800 border-slate-700 text-slate-100 text-sm h-8 flex-1"
+            onKeyDown={e => e.key === 'Enter' && handleUpload()} />
+          <Button size="sm" onClick={handleUpload} className="bg-blue-600 hover:bg-blue-700 text-white h-8 text-xs px-3">
+            添加
+          </Button>
+        </div>
+      )}
+
+      {/* 引用预立项资料 */}
+      {tab === 'preproject' && (
+        <div className="space-y-2">
+          <select value={selectedPP} onChange={e => setSelectedPP(e.target.value)}
+            className="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-1.5">
+            <option value="">选择预立项...</option>
+            {MOCK_PRE_PROJECTS.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          {pp && (
+            <div className="space-y-1">
+              {pp.docs.map(d => (
+                <div key={d.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-800/60 border border-slate-700/40 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="px-1.5 py-0.5 rounded font-mono uppercase text-[10px] bg-slate-600/40 text-slate-400">{d.type}</span>
+                    <span className="text-slate-200">{d.name}</span>
+                    <span className="text-slate-500">{d.size}</span>
+                  </div>
+                  <button onClick={() => add({ id: 'pp-' + d.id, name: d.name, source: 'preproject', size: d.size, type: d.type, preProjectId: pp.id, preProjectName: pp.name })}
+                    className="text-blue-400 hover:text-blue-300 text-xs px-2 py-0.5 rounded border border-blue-500/30 hover:bg-blue-500/10 transition-colors">
+                    引用
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* AI 生成文档 */}
+      {tab === 'ai' && (
+        <div className="space-y-1.5">
+          {AI_DOC_TEMPLATES.map(tpl => (
+            <div key={tpl.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-800/60 border border-slate-700/40 text-xs">
+              <div>
+                <p className="text-slate-200">{tpl.name}</p>
+                <p className="text-slate-500 mt-0.5">{tpl.desc}</p>
+              </div>
+              <button onClick={() => handleGenerate(tpl)} disabled={generatingId === tpl.id}
+                className="shrink-0 ml-3 flex items-center gap-1 text-purple-400 hover:text-purple-300 text-xs px-2 py-0.5 rounded border border-purple-500/30 hover:bg-purple-500/10 transition-colors disabled:opacity-50">
+                {generatingId === tpl.id ? <><Loader2 className="w-3 h-3 animate-spin" />生成中</> : <><Sparkles className="w-3 h-3" />生成</>}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Step 1：项目基本信息 ────────────────────────────────────
 interface Step1Data {
   name: string; type: string; manager: string;
   startDate: string; endDate: string; budget: string; description: string;
   members: ProjectMember[];
+  attachments: Attachment[];
 }
 function Step1({ data, onChange }: { data: Step1Data; onChange: (d: Step1Data) => void }) {
   const [memberPickerOpen, setMemberPickerOpen] = useState(false);
@@ -225,6 +408,7 @@ function Step1({ data, onChange }: { data: Step1Data; onChange: (d: Step1Data) =
 // Step2 的整体数据：多份合同
 interface ContractData {
   contracts: SingleContractData[];
+  attachments: Attachment[];
 }
 const EMPTY_SINGLE_CONTRACT: SingleContractData = {
   contractName: '', contractNo: '', client: '', amount: '', signDate: '',
@@ -448,15 +632,15 @@ function SingleContractForm({
 
 function Step2({ data, onChange }: { data: ContractData; onChange: (d: ContractData) => void }) {
   const addContract = () => {
-    onChange({ contracts: [...data.contracts, { ...EMPTY_SINGLE_CONTRACT }] });
+    onChange({ contracts: [...data.contracts, { ...EMPTY_SINGLE_CONTRACT }], attachments: data.attachments || [] });
   };
   const updateContract = (i: number, c: SingleContractData) => {
     const cs = [...data.contracts]; cs[i] = c;
-    onChange({ contracts: cs });
+    onChange({ contracts: cs, attachments: data.attachments || [] });
   };
   const removeContract = (i: number) => {
     if (data.contracts.length <= 1) return;
-    onChange({ contracts: data.contracts.filter((_, idx) => idx !== i) });
+    onChange({ contracts: data.contracts.filter((_, idx) => idx !== i), attachments: data.attachments || [] });
   };
 
   const totalAmount = data.contracts.reduce((s, c) => s + (Number(c.amount) || 0), 0);
@@ -500,52 +684,104 @@ function Step2({ data, onChange }: { data: ContractData; onChange: (d: ContractD
   );
 }
 
-// ── Step 3：提交审核 ────────────────────────────────────────
-interface Step3Data { reviewer: string; reviewNote: string; }
-function Step3({ data, onChange, projectData, contractData }:
-  { data: Step3Data; onChange: (d: Step3Data) => void; projectData: Step1Data; contractData: ContractData }) {
+// ── Step 3：AI 风险审核 ────────────────────────────────────────
+function Step3AI({ projectData, contractData, onAnalysisDone }:
+  { projectData: Step1Data; contractData: ContractData; onAnalysisDone: (result: string) => void }) {
+  const { run, loading, result, error, reset } = useAI({ model: 'gpt-4o-mini', temperature: 0.4, stream: true });
+  const [started, setStarted] = useState(false);
+
+  const totalAmount = contractData.contracts.reduce((s, c) => s + (Number(c.amount) || 0), 0);
+  const durationDays = projectData.startDate && projectData.endDate
+    ? Math.round((new Date(projectData.endDate).getTime() - new Date(projectData.startDate).getTime()) / 86400000)
+    : 0;
+
+  const handleAnalyze = async () => {
+    setStarted(true);
+    reset();
+    const prompt = `你是一个资深项目风险顾问，请对以下立项信息进行专业风险分析：
+
+项目名称：${projectData.name}
+项目类型：${projectData.type}
+项目经理：${projectData.manager}
+项目周期：${projectData.startDate} 至 ${projectData.endDate}（${durationDays}天）
+项目成员：${projectData.members.length}人（${projectData.members.map(m => m.name + '/' + m.role).join('、') || '未配置'}）
+合同份数：${contractData.contracts.length}份
+合同总额：￥${totalAmount.toLocaleString()}
+甲方：${contractData.contracts[0]?.client || '未填写'}
+${projectData.description ? '项目描述：' + projectData.description : ''}
+
+请从以下维度进行分析，输出格式要简洁专业：
+1. 风险等级：（低/中/高）并说明理由
+2. 合同风险：合同金额、周期、条款方面的潜在风险
+3. 资源风险：人员配置、周期合理性分析
+4. 商务风险：甲方信用、项目范围变更等风险
+5. 建议与对策：针对主要风险给出 3-5 条具体建议`;
+    const res = await run([{ role: 'user', content: prompt }]);
+    if (res) onAnalysisDone(res);
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4 space-y-3 text-sm">
-        <h3 className="text-slate-300 font-medium mb-2">立项信息预览</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <div><span className="text-slate-500">项目名称：</span><span className="text-slate-200">{projectData.name || '—'}</span></div>
-          <div><span className="text-slate-500">项目类型：</span><span className="text-slate-200">{projectData.type || '—'}</span></div>
-          <div><span className="text-slate-500">项目经理：</span><span className="text-slate-200">{projectData.manager}</span></div>
-          <div><span className="text-slate-500">成员数量：</span><span className="text-slate-200">{projectData.members.length} 人</span></div>
-          <div><span className="text-slate-500">合同名称：</span><span className="text-slate-200">{contractData.contracts[0]?.contractName || '—'}</span></div>
-          <div><span className="text-slate-500">合同总额：</span><span className="text-green-400 font-semibold">¥{contractData.contracts.reduce((s,c)=>s+(Number(c.amount)||0),0).toLocaleString()}</span></div>
+    <div className="space-y-4">
+      <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-4 text-sm text-purple-300">
+        <Bot className="w-5 h-5 mb-2" />
+        <p>AI 将基于项目信息和合同详情，自动分析项目风险并给出专业建议，帮助项目经理提前识别潜在问题。</p>
+      </div>
+
+      {/* 项目摘要 */}
+      <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4 space-y-2 text-sm">
+        <h3 className="text-slate-300 font-medium mb-2">立项信息摘要</h3>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div><span className="text-slate-500">项目：</span><span className="text-slate-200">{projectData.name}</span></div>
+          <div><span className="text-slate-500">类型：</span><span className="text-slate-200">{projectData.type}</span></div>
+          <div><span className="text-slate-500">周期：</span><span className="text-slate-200">{durationDays} 天</span></div>
+          <div><span className="text-slate-500">合同总额：</span><span className="text-green-400 font-semibold">￥{totalAmount.toLocaleString()}</span></div>
+          <div><span className="text-slate-500">甲方：</span><span className="text-slate-200">{contractData.contracts[0]?.client || '—'}</span></div>
+          <div><span className="text-slate-500">成员：</span><span className="text-slate-200">{projectData.members.length} 人</span></div>
         </div>
       </div>
-      <div>
-        <Label className="text-slate-300 text-sm">指定审核人 <span className="text-red-400">*</span></Label>
-        <Select value={data.reviewer} onValueChange={v => onChange({ ...data, reviewer: v })}>
-          <SelectTrigger className="mt-1 bg-slate-800 border-slate-700 text-slate-100">
-            <SelectValue placeholder="选择审核人" />
-          </SelectTrigger>
-          <SelectContent className="bg-slate-800 border-slate-700">
-            {MEMBER_POOL.map(p => <SelectItem key={p.name} value={p.name} className="text-slate-200">{p.name}（{p.dept}）</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
-      <div>
-        <Label className="text-slate-300 text-sm">审核说明</Label>
-        <Textarea value={data.reviewNote} onChange={e => onChange({ ...data, reviewNote: e.target.value })}
-          placeholder="向审核人说明立项背景、重点关注事项等..." rows={3}
-          className="mt-1 bg-slate-800 border-slate-700 text-slate-100 resize-none" />
-      </div>
+
+      {/* AI 分析结果 */}
+      {!started ? (
+        <Button onClick={handleAnalyze} className="w-full bg-purple-600 hover:bg-purple-700 text-white gap-2 py-3">
+          <Bot className="w-5 h-5" /> 开始 AI 风险分析
+        </Button>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-slate-400 flex items-center gap-1.5">
+              {loading ? <><Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400" />分析中，请稍候...</> : <><ShieldCheck className="w-3.5 h-3.5 text-green-400" />分析完成</>}
+            </span>
+            {!loading && (
+              <button onClick={handleAnalyze} className="text-xs text-slate-500 hover:text-slate-300 flex items-center gap-1">
+                <RefreshCw className="w-3 h-3" /> 重新分析
+              </button>
+            )}
+          </div>
+          {error && (
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>AI 分析失败：{error}，请点击重新分析</span>
+            </div>
+          )}
+          {result && (
+            <div className="bg-slate-900/80 border border-slate-700/50 rounded-xl p-4 text-xs text-slate-300 leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto">
+              {result}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-// ── Step 4：PM确认 ──────────────────────────────────────────
-function Step4({ projectData, contractData, reviewData, onConfirm, confirmed }:
-  { projectData: Step1Data; contractData: ContractData; reviewData: Step3Data; onConfirm: () => void; confirmed: boolean }) {
+// ── Step 4：PM确认 & 通知老板 ────────────────────────────────────
+function Step4({ projectData, contractData, aiResult, onConfirm, confirmed }:
+  { projectData: Step1Data; contractData: ContractData; aiResult: string; onConfirm: () => void; confirmed: boolean }) {
   return (
     <div className="space-y-4">
       <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 text-sm text-blue-300">
         <UserCheck className="w-5 h-5 mb-2" />
-        <p>请项目经理 <span className="font-semibold">{projectData.manager}</span> 仔细核对以下立项信息，确认无误后点击「确认立项信息」。</p>
+        <p>请项目经理 <span className="font-semibold">{projectData.manager}</span> 核对立项信息和 AI 风险分析意见，确认后系统将自动发送通知给老板，无需额外签字。</p>
       </div>
 
       <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-5 space-y-4 text-sm">
@@ -556,7 +792,7 @@ function Step4({ projectData, contractData, reviewData, onConfirm, confirmed }:
             <div><span className="text-slate-500">类型：</span><span className="text-slate-200">{projectData.type}</span></div>
             <div><span className="text-slate-500">开始：</span><span className="text-slate-200">{projectData.startDate}</span></div>
             <div><span className="text-slate-500">结束：</span><span className="text-slate-200">{projectData.endDate}</span></div>
-            {projectData.budget && <div className="col-span-2"><span className="text-slate-500">预算：</span><span className="text-green-400">¥{Number(projectData.budget).toLocaleString()}</span></div>}
+            {projectData.budget && <div className="col-span-2"><span className="text-slate-500">预算：</span><span className="text-green-400">￥{Number(projectData.budget).toLocaleString()}</span></div>}
           </div>
         </div>
         <div>
@@ -564,75 +800,44 @@ function Step4({ projectData, contractData, reviewData, onConfirm, confirmed }:
           <div className="grid grid-cols-2 gap-2">
             <div className="col-span-2"><span className="text-slate-500">合同（{contractData.contracts.length}份）：</span><span className="text-slate-200">{contractData.contracts.map(c=>c.contractName||c.contractSubtype).join('、')}</span></div>
             <div><span className="text-slate-500">甲方：</span><span className="text-slate-200">{contractData.contracts[0]?.client || '—'}</span></div>
-            <div><span className="text-slate-500">合同总额：</span><span className="text-green-400 font-semibold">¥{contractData.contracts.reduce((s,c)=>s+(Number(c.amount)||0),0).toLocaleString()}</span></div>
+            <div><span className="text-slate-500">合同总额：</span><span className="text-green-400 font-semibold">￥{contractData.contracts.reduce((s,c)=>s+(Number(c.amount)||0),0).toLocaleString()}</span></div>
           </div>
         </div>
-        <div>
-          <h4 className="text-slate-400 text-xs uppercase tracking-wider mb-2">项目成员（{projectData.members.length} 人）</h4>
-          <div className="flex flex-wrap gap-2">
-            {projectData.members.map(m => (
-              <span key={m.name} className="text-xs px-2 py-1 rounded-full bg-slate-700/60 text-slate-300">
-                {m.name} · {m.role}
-              </span>
-            ))}
+        {projectData.members.length > 0 && (
+          <div>
+            <h4 className="text-slate-400 text-xs uppercase tracking-wider mb-2">项目成员（{projectData.members.length} 人）</h4>
+            <div className="flex flex-wrap gap-2">
+              {projectData.members.map(m => (
+                <span key={m.name} className="text-xs px-2 py-1 rounded-full bg-slate-700/60 text-slate-300">
+                  {m.name} · {m.role}
+                </span>
+              ))}
+            </div>
           </div>
-        </div>
-        <div>
-          <h4 className="text-slate-400 text-xs uppercase tracking-wider mb-2">审核信息</h4>
-          <div><span className="text-slate-500">审核人：</span><span className="text-slate-200">{reviewData.reviewer}</span></div>
-        </div>
+        )}
+        {aiResult && (
+          <div>
+            <h4 className="text-slate-400 text-xs uppercase tracking-wider mb-2">AI 风险分析摘要</h4>
+            <div className="bg-purple-500/5 border border-purple-500/20 rounded-lg p-3 text-xs text-slate-300 leading-relaxed whitespace-pre-wrap max-h-32 overflow-y-auto">
+              {aiResult.slice(0, 400)}{aiResult.length > 400 ? '...' : ''}
+            </div>
+          </div>
+        )}
       </div>
 
       {!confirmed ? (
         <Button onClick={onConfirm} className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2">
-          <UserCheck className="w-4 h-4" /> 确认立项信息
+          <UserCheck className="w-4 h-4" /> 确认立项，自动通知老板
         </Button>
       ) : (
         <div className="flex items-center gap-2 p-3 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 text-sm">
-          <CheckCircle2 className="w-5 h-5" />
-          <span>项目经理已确认，等待老板签字</span>
+          <Bell className="w-5 h-5" />
+          <div>
+            <p className="font-medium">立项确认成功！</p>
+            <p className="text-xs text-green-500/80 mt-0.5">已自动发送通知给老板，项目将正式立项</p>
+          </div>
         </div>
       )}
-    </div>
-  );
-}
-
-// ── Step 5：老板签字 ────────────────────────────────────────
-function Step5({ projectData, contractData, onSign }:
-  { projectData: Step1Data; contractData: ContractData; onSign: () => void }) {
-  const [signNote, setSignNote] = useState('');
-
-  return (
-    <div className="space-y-4">
-      <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-4 text-sm text-orange-300">
-        <PenLine className="w-5 h-5 mb-2" />
-        <p>老板最终审批。签字后项目将正式立项，系统将自动创建项目台账和合同记录。</p>
-      </div>
-
-      <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-5 space-y-3 text-sm">
-        <div className="flex justify-between items-center">
-          <span className="text-slate-400 font-medium">{projectData.name}</span>
-          <Badge className="bg-blue-500/20 text-blue-300 border-0">{projectData.type}</Badge>
-        </div>
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <div><span className="text-slate-500">甲方：</span><span className="text-slate-300">{contractData.contracts[0]?.client || '—'}</span></div>
-          <div><span className="text-slate-500">合同总额：</span><span className="text-green-400 font-semibold">¥{contractData.contracts.reduce((s,c)=>s+(Number(c.amount)||0),0).toLocaleString()}</span></div>
-          <div><span className="text-slate-500">PM：</span><span className="text-slate-300">{projectData.manager}</span></div>
-          <div><span className="text-slate-500">成员：</span><span className="text-slate-300">{projectData.members.length} 人</span></div>
-          <div><span className="text-slate-500">周期：</span><span className="text-slate-300">{projectData.startDate} ~ {projectData.endDate}</span></div>
-        </div>
-      </div>
-
-      <div>
-        <Label className="text-slate-300 text-sm">签字说明（可选）</Label>
-        <Textarea value={signNote} onChange={e => setSignNote(e.target.value)}
-          placeholder="如有特殊要求或批示，请在此填写..." rows={3}
-          className="mt-1 bg-slate-800 border-slate-700 text-slate-100 resize-none" />
-      </div>
-
-      <Button onClick={onSign} className="w-full bg-green-600 hover:bg-green-700 text-white gap-2 py-3 text-base">
-        <PenLine className="w-5 h-5" /> 老板签字确认，正式立项
-      </Button>
     </div>
   );
 }
@@ -652,12 +857,14 @@ export default function NewProjectPage({ onBack, onContractCreated }: NewProject
   const [jumpTimer, setJumpTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
 
   const [step1, setStep1] = useState<Step1Data>({
-    name: '', type: '', manager: '张伟', startDate: '', endDate: '', budget: '', description: '', members: []
+    name: '', type: '', manager: '张伟', startDate: '', endDate: '', budget: '', description: '', members: [], attachments: []
   });
   const [step2, setStep2] = useState<ContractData>({
-    contracts: [{ ...EMPTY_SINGLE_CONTRACT }]
+    contracts: [{ ...EMPTY_SINGLE_CONTRACT }],
+    attachments: []
   });
-  const [step3, setStep3] = useState<Step3Data>({ reviewer: '', reviewNote: '' });
+  const [aiResult, setAiResult] = useState('');
+  const [step3Done, setStep3Done] = useState(false);
 
   const handleBack = () => {
     if (step > 1) setStep(s => s - 1);
@@ -677,10 +884,9 @@ export default function NewProjectPage({ onBack, onContractCreated }: NewProject
       if (!first.amount || Number(first.amount) <= 0) { toast.error('请填写合同金额'); return; }
     }
     if (step === 3) {
-      if (!step3.reviewer) { toast.error('请指定审核人'); return; }
-      toast.success(`已提交审核，审核人：${step3.reviewer}`);
+      // AI 分析可跳过，直接进入下一步
     }
-    if (step < 5) setStep(s => s + 1);
+    if (step < 4) setStep(s => s + 1);
   };
 
   const handleSign = () => {
@@ -770,7 +976,7 @@ export default function NewProjectPage({ onBack, onContractCreated }: NewProject
 
       <div className="mb-6">
         <h1 className="text-xl font-semibold text-slate-100">新建项目立项单</h1>
-        <p className="text-sm text-slate-400 mt-0.5">完成五步立项流程，正式创建项目</p>
+        <p className="text-sm text-slate-400 mt-0.5">完成四步立项流程，正式创建项目</p>
       </div>
 
       <StepIndicator current={step} />
@@ -796,28 +1002,28 @@ export default function NewProjectPage({ onBack, onContractCreated }: NewProject
 
         {step === 1 && <Step1 data={step1} onChange={setStep1} />}
         {step === 2 && <Step2 data={step2} onChange={setStep2} />}
-        {step === 3 && <Step3 data={step3} onChange={setStep3} projectData={step1} contractData={step2} />}
+        {step === 3 && <Step3AI projectData={step1} contractData={step2} onAnalysisDone={(r) => { setAiResult(r); setStep3Done(true); }} />}
         {step === 4 && (
-          <Step4 projectData={step1} contractData={step2} reviewData={step3}
-            onConfirm={() => setPmConfirmed(true)} confirmed={pmConfirmed} />
+          <Step4 projectData={step1} contractData={step2} aiResult={aiResult}
+            onConfirm={() => { setPmConfirmed(true); }} confirmed={pmConfirmed} />
         )}
-        {step === 5 && <Step5 projectData={step1} contractData={step2} onSign={handleSign} />}
+
       </div>
 
       {/* 底部按钮 */}
-      {step !== 5 && !(step === 4 && !pmConfirmed) && (
+      {step !== 4 && (
         <div className="flex justify-end mt-4">
           <Button onClick={handleNext}
             className="bg-blue-600 hover:bg-blue-700 text-white gap-2 px-6">
-            {step === 3 ? '提交审核' : step === 4 ? '进入老板签字' : '下一步'}
+            {step === 3 ? (step3Done ? '下一步（已完成分析）' : '跳过，直接下一步') : '下一步'}
             <ArrowRight className="w-4 h-4" />
           </Button>
         </div>
       )}
       {step === 4 && pmConfirmed && (
         <div className="flex justify-end mt-4">
-          <Button onClick={() => setStep(5)} className="bg-blue-600 hover:bg-blue-700 text-white gap-2 px-6">
-            进入老板签字 <ArrowRight className="w-4 h-4" />
+          <Button onClick={handleSign} className="bg-green-600 hover:bg-green-700 text-white gap-2 px-6">
+            正式立项 <ArrowRight className="w-4 h-4" />
           </Button>
         </div>
       )}

@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { useAI } from '@/hooks/useAI';
 import { invoices as initialInvoices, Invoice, projects, contracts } from '@/lib/mockData';
+import { usePaymentRequests, PaymentRequest } from '@/contexts/PaymentRequestContext';
 import { useRole } from '@/contexts/RoleContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +16,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import {
   Receipt, Plus, CheckCircle2, XCircle, CreditCard, Clock, AlertCircle, Circle, ChevronRight,
-  FileText, Building2, Calendar, ChevronDown, ChevronUp, Eye, Bot, Sparkles, ShieldAlert
+  FileText, Building2, Calendar, ChevronDown, ChevronUp, Eye, Bot, Sparkles, ShieldAlert,
+  ScanLine, ArrowRightLeft, CheckCheck, Bell
 } from 'lucide-react';
 
 // ── 状态配置 ────────────────────────────────────────────────
@@ -398,6 +400,246 @@ function PayDialog({ open, onClose, invoice, onPay }: PayDialogProps) {
   );
 }
 
+
+// ── OCR 发票识别 + 收付款申请审核弹窗 ─────────────────────────
+interface PaymentReviewDialogProps {
+  open: boolean;
+  onClose: () => void;
+  request: PaymentRequest | null;
+  onApprove: (id: string, patch: Partial<PaymentRequest>) => void;
+  onReject: (id: string, note: string) => void;
+  onComplete: (id: string, voucher: string) => void;
+}
+
+function PaymentReviewDialog({ open, onClose, request, onApprove, onReject, onComplete }: PaymentReviewDialogProps) {
+  const [step, setStep] = useState<'ocr' | 'review' | 'complete'>('ocr');
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrDone, setOcrDone] = useState(false);
+  const [invoiceNo, setInvoiceNo] = useState('');
+  const [invoiceTax, setInvoiceTax] = useState('');
+  const [invoiceDate, setInvoiceDate] = useState('');
+  const [invoiceAmount, setInvoiceAmount] = useState('');
+  const [reviewNote, setReviewNote] = useState('');
+  const [voucher, setVoucher] = useState('');
+  const [rejectNote, setRejectNote] = useState('');
+  const [showReject, setShowReject] = useState(false);
+
+  if (!request) return null;
+
+  const handleOCR = async () => {
+    setOcrLoading(true);
+    await new Promise(r => setTimeout(r, 1500));
+    // 模拟 OCR 识别结果
+    setInvoiceNo('VAT-2026-' + Math.floor(Math.random() * 90000 + 10000));
+    setInvoiceTax('91310000' + Math.floor(Math.random() * 90000000 + 10000000));
+    setInvoiceDate(new Date().toISOString().slice(0, 10));
+    setInvoiceAmount(String(request.amount));
+    setOcrDone(true);
+    setOcrLoading(false);
+    toast.success('OCR 识别完成，请核对信息');
+  };
+
+  const handleApprove = () => {
+    if (!invoiceNo || !invoiceAmount) { toast.error('请先完成 OCR 识别'); return; }
+    onApprove(request.id, {
+      status: '已审核',
+      invoiceNo,
+      invoiceTax,
+      invoiceDate,
+      invoiceAmount: Number(invoiceAmount),
+      reviewer: '财务',
+      reviewedAt: new Date().toISOString().slice(0, 10),
+      reviewNote,
+    });
+    toast.success('已审核通过，等待完成付款');
+    setStep('complete');
+  };
+
+  const handleComplete = () => {
+    if (!voucher.trim()) { toast.error('请填写付款凭证'); return; }
+    onComplete(request.id, voucher);
+    toast.success('已标记完成，PM 将收到通知');
+    onClose();
+    resetForm();
+  };
+
+  const handleReject = () => {
+    if (!rejectNote.trim()) { toast.error('请填写驳回原因'); return; }
+    onReject(request.id, rejectNote);
+    toast.success('已驳回，PM 将收到通知');
+    onClose();
+    resetForm();
+  };
+
+  const resetForm = () => {
+    setStep('ocr'); setOcrDone(false); setInvoiceNo(''); setInvoiceTax('');
+    setInvoiceDate(''); setInvoiceAmount(''); setReviewNote(''); setVoucher('');
+    setRejectNote(''); setShowReject(false);
+  };
+
+  const amountMatch = ocrDone && Number(invoiceAmount) === request.amount;
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) { onClose(); resetForm(); } }}>
+      <DialogContent className="bg-slate-900 border-slate-700 text-slate-100 max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="text-slate-100 flex items-center gap-2">
+            <ArrowRightLeft className="w-5 h-5 text-blue-400" />
+            {request.type === '收款' ? '收款' : '付款'}申请审核
+          </DialogTitle>
+        </DialogHeader>
+
+        {/* 申请信息 */}
+        <div className="bg-slate-800/60 rounded-xl p-4 space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-slate-500">合同</span>
+            <span className="text-slate-200 text-right max-w-[200px] truncate">{request.contractName}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-500">节点</span>
+            <span className="text-slate-200">{request.stageName}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-500">申请金额</span>
+            <span className={`font-bold text-base ${request.type === '收款' ? 'text-emerald-400' : 'text-amber-400'}`}>
+              ¥{request.amount.toLocaleString()}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-500">发起人</span>
+            <span className="text-slate-200">{request.initiator} · {request.initiatedAt}</span>
+          </div>
+        </div>
+
+        {/* Step 1: OCR */}
+        {(step === 'ocr' || step === 'review') && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-slate-300 flex items-center gap-2">
+                <ScanLine className="w-4 h-4 text-blue-400" /> 发票 OCR 识别
+              </span>
+              {!ocrDone && (
+                <button onClick={handleOCR} disabled={ocrLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs transition-colors disabled:opacity-50">
+                  {ocrLoading ? <><span className="animate-spin">⟳</span> 识别中...</> : <><ScanLine className="w-3 h-3" /> 上传发票并识别</>}
+                </button>
+              )}
+              {ocrDone && <span className="text-xs text-emerald-400 flex items-center gap-1"><CheckCheck className="w-3 h-3" /> 识别完成</span>}
+            </div>
+            {ocrDone && (
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs text-slate-500">发票号</label>
+                  <input value={invoiceNo} onChange={e => setInvoiceNo(e.target.value)}
+                    className="mt-0.5 w-full bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1.5" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500">税号</label>
+                  <input value={invoiceTax} onChange={e => setInvoiceTax(e.target.value)}
+                    className="mt-0.5 w-full bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1.5" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500">发票日期</label>
+                  <input type="date" value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)}
+                    className="mt-0.5 w-full bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1.5" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 flex items-center gap-1">
+                    发票金额
+                    {ocrDone && (
+                      amountMatch
+                        ? <span className="text-emerald-400">✓ 与申请一致</span>
+                        : <span className="text-red-400">⚠ 与申请不符</span>
+                    )}
+                  </label>
+                  <input type="number" value={invoiceAmount} onChange={e => setInvoiceAmount(e.target.value)}
+                    className={`mt-0.5 w-full bg-slate-800 border text-slate-200 text-xs rounded-lg px-2 py-1.5 ${
+                      ocrDone && !amountMatch ? 'border-red-500/50' : 'border-slate-700'
+                    }`} />
+                </div>
+              </div>
+            )}
+            <div>
+              <label className="text-xs text-slate-500">审核备注（选填）</label>
+              <textarea value={reviewNote} onChange={e => setReviewNote(e.target.value)}
+                rows={2} placeholder="填写审核意见..."
+                className="mt-0.5 w-full bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1.5 resize-none" />
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: Complete */}
+        {step === 'complete' && (
+          <div className="space-y-3">
+            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-sm">
+              <p className="text-emerald-400 font-medium flex items-center gap-2">
+                <CheckCheck className="w-4 h-4" /> 已审核通过，请填写付款凭证后完成
+              </p>
+            </div>
+            <div>
+              <label className="text-xs text-slate-500">付款凭证（银行流水号等）<span className="text-red-400">*</span></label>
+              <textarea value={voucher} onChange={e => setVoucher(e.target.value)}
+                rows={2} placeholder="填写银行转账流水号、付款时间等..."
+                className="mt-0.5 w-full bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1.5 resize-none" />
+            </div>
+          </div>
+        )}
+
+        {/* 驳回表单 */}
+        {showReject && (
+          <div className="space-y-2 border-t border-red-500/20 pt-3">
+            <label className="text-xs text-red-400">驳回原因 <span className="text-red-400">*</span></label>
+            <textarea value={rejectNote} onChange={e => setRejectNote(e.target.value)}
+              rows={2} placeholder="请填写驳回原因..."
+              className="w-full bg-slate-800 border border-red-500/30 text-slate-200 text-xs rounded-lg px-2 py-1.5 resize-none" />
+            <div className="flex gap-2">
+              <button onClick={() => setShowReject(false)}
+                className="flex-1 py-1.5 rounded-lg border border-slate-600 text-slate-400 text-xs hover:bg-slate-800 transition-colors">
+                取消
+              </button>
+              <button onClick={handleReject}
+                className="flex-1 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs transition-colors">
+                确认驳回
+              </button>
+            </div>
+          </div>
+        )}
+
+        <DialogFooter className="gap-2 flex-wrap">
+          {step !== 'complete' && !showReject && (
+            <>
+              <button onClick={() => setShowReject(true)}
+                className="px-3 py-1.5 rounded-lg border border-red-500/30 text-red-400 text-xs hover:bg-red-500/10 transition-colors">
+                驳回
+              </button>
+              <button onClick={onClose}
+                className="px-3 py-1.5 rounded-lg border border-slate-600 text-slate-400 text-xs hover:bg-slate-800 transition-colors">
+                取消
+              </button>
+              <button onClick={handleApprove} disabled={!ocrDone}
+                className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs transition-colors disabled:opacity-40 flex items-center gap-1.5">
+                <CheckCheck className="w-3 h-3" /> 审核通过
+              </button>
+            </>
+          )}
+          {step === 'complete' && !showReject && (
+            <>
+              <button onClick={onClose}
+                className="px-3 py-1.5 rounded-lg border border-slate-600 text-slate-400 text-xs hover:bg-slate-800 transition-colors">
+                取消
+              </button>
+              <button onClick={handleComplete}
+                className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs transition-colors flex items-center gap-1.5">
+                <CheckCheck className="w-3 h-3" /> 标记完成并通知 PM
+              </button>
+            </>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── 发票详情弹窗 ────────────────────────────────────────────
 interface DetailDialogProps {
   open: boolean;
@@ -492,7 +734,10 @@ function DetailDialog({ open, onClose, invoice }: DetailDialogProps) {
 // ── 主页面 ──────────────────────────────────────────────────
 export default function InvoicesPage() {
   const { role } = useRole();
+  const { requests: paymentRequests, updateRequest: updatePaymentRequest } = usePaymentRequests();
   const [invoiceList, setInvoiceList] = useState<Invoice[]>(initialInvoices);
+  const [reviewTarget, setReviewTarget] = useState<PaymentRequest | null>(null);
+  const [mainTab, setMainTab] = useState<'invoices' | 'requests'>('invoices');
   const [submitOpen, setSubmitOpen] = useState(false);
   const [approveTarget, setApproveTarget] = useState<Invoice | null>(null);
   const [payTarget, setPayTarget] = useState<Invoice | null>(null);
@@ -536,6 +781,19 @@ export default function InvoicesPage() {
       : i
     ));
   };
+  const handlePaymentApprove = (id: string, patch: Partial<PaymentRequest>) => {
+    updatePaymentRequest(id, patch);
+  };
+  const handlePaymentReject = (id: string, note: string) => {
+    updatePaymentRequest(id, { status: '已驳回', reviewNote: note, reviewer: '财务', reviewedAt: new Date().toISOString().slice(0, 10) });
+    // 通知 PM（toast 模拟）
+    toast.info('已通知 PM：申请已被驳回');
+  };
+  const handlePaymentComplete = (id: string, voucher: string) => {
+    updatePaymentRequest(id, { status: '已完成', completedAt: new Date().toISOString().slice(0, 10), voucher });
+    // 通知 PM（toast 模拟）
+    toast.success('已通知 PM：款项已完成');
+  };
 
   const FILTER_OPTIONS = ['全部', '待审批', '已审批', '已付款', '已驳回'];
 
@@ -554,6 +812,97 @@ export default function InvoicesPage() {
         )}
       </div>
 
+      {/* 主 Tab */}
+      <div className="flex gap-1 border-b border-slate-700/50 pb-0">
+        <button onClick={() => setMainTab('invoices')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            mainTab === 'invoices'
+              ? 'border-blue-500 text-blue-400'
+              : 'border-transparent text-slate-500 hover:text-slate-300'
+          }`}>
+          外包发票
+        </button>
+        <button onClick={() => setMainTab('requests')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+            mainTab === 'requests'
+              ? 'border-blue-500 text-blue-400'
+              : 'border-transparent text-slate-500 hover:text-slate-300'
+          }`}>
+          收付款申请
+          {paymentRequests.filter(r => r.status === '待财务审核').length > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold">
+              {paymentRequests.filter(r => r.status === '待财务审核').length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* 收付款申请列表 */}
+      {mainTab === 'requests' && (
+        <div className="space-y-3">
+          {paymentRequests.length === 0 ? (
+            <div className="text-center py-12 text-slate-500">
+              <ArrowRightLeft className="w-10 h-10 mx-auto mb-3 opacity-30" />
+              <p>暂无收付款申请</p>
+            </div>
+          ) : (
+            paymentRequests.map(req => {
+              const statusColor: Record<string, string> = {
+                '待财务审核': 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+                '已审核': 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+                '已完成': 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+                '已驳回': 'bg-red-500/20 text-red-300 border-red-500/30',
+              };
+              return (
+                <div key={req.id} className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className={`text-[10px] px-2 py-0.5 rounded border font-medium ${
+                          req.type === '收款' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25' : 'bg-amber-500/15 text-amber-400 border-amber-500/25'
+                        }`}>
+                          {req.type === '收款' ? '↑ 收款申请' : '↓ 付款申请'}
+                        </span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded border font-medium ${statusColor[req.status] || 'bg-slate-500/20 text-slate-400 border-slate-500/30'}`}>
+                          {req.status}
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium text-slate-200 truncate">{req.contractName}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{req.stageName} · 发起人：{req.initiator} · {req.initiatedAt}</p>
+                      {req.invoiceNo && (
+                        <p className="text-xs text-slate-500 mt-0.5">发票号：{req.invoiceNo} · 发票金额：¥{req.invoiceAmount?.toLocaleString()}</p>
+                      )}
+                      {req.status === '已完成' && req.completedAt && (
+                        <p className="text-xs text-emerald-400 mt-0.5 flex items-center gap-1">
+                          <Bell className="w-3 h-3" /> 已通知 PM · 完成于 {req.completedAt}
+                        </p>
+                      )}
+                      {req.status === '已驳回' && req.reviewNote && (
+                        <p className="text-xs text-red-400 mt-0.5">驳回原因：{req.reviewNote}</p>
+                      )}
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className={`text-lg font-bold ${req.type === '收款' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        ¥{req.amount.toLocaleString()}
+                      </p>
+                      {(req.status === '待财务审核' || req.status === '已审核') && (role === 'finance' || role === 'boss') && (
+                        <button
+                          onClick={() => setReviewTarget(req)}
+                          className="mt-2 text-xs px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                        >
+                          {req.status === '待财务审核' ? '审核' : '完成付款'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {mainTab === 'invoices' && <>
       {/* 统计卡片 */}
       <div className="grid grid-cols-5 gap-4">
         {[
@@ -715,6 +1064,8 @@ export default function InvoicesPage() {
       </div>
 
       {/* 弹窗 */}
+      </>
+      }
       <SubmitInvoiceDialog open={submitOpen} onClose={() => setSubmitOpen(false)} onSubmit={handleSubmit} />
       <ApproveDialog open={!!approveTarget} onClose={() => setApproveTarget(null)}
         invoice={approveTarget} onApprove={handleApprove} onReject={handleReject} />

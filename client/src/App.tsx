@@ -2,6 +2,7 @@
 // 设计风格：深色专业管理台风，左侧侧边栏 + 顶部 Header + 主内容区
 
 import { Toaster } from "@/components/ui/sonner";
+import { toast } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useState } from "react";
 import Header from "./components/Header";
@@ -10,6 +11,7 @@ import { RoleProvider, useRole, Role } from "./contexts/RoleContext";
 import { ContractProvider, useContracts } from "./contexts/ContractContext";
 import { TransferProvider } from "./contexts/TransferContext";
 import { ProjectProvider } from "./contexts/ProjectContext";
+import { PaymentRequestProvider } from "./contexts/PaymentRequestContext";
 import { Contract } from "./lib/mockData";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -26,6 +28,8 @@ import MilestonesPage from "./pages/MilestonesPage";
 import VendorsPage from "./pages/VendorsPage";
 import InvoicesPage from "./pages/InvoicesPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
+import SystemPage from "./pages/SystemPage";
+import PreProjectPage from "./pages/PreProjectPage";
 import NewProjectPage from "./pages/NewProjectPage";
 
 function MainApp() {
@@ -35,7 +39,7 @@ function MainApp() {
   const { role, setRole } = useRole();
   const { addContract } = useContracts();
 
-  function handleLogin(selectedRole: Role) {
+  function handleLogin(selectedRole: Role, _name?: string) {
     setRole(selectedRole);
     setIsLoggedIn(true);
     setActivePage('dashboard');
@@ -63,6 +67,8 @@ function MainApp() {
         if (role === 'vendor') return <DashboardVendor />;
         if (role === 'finance') return <DashboardFinance />;
         return <DashboardBoss />;
+      case 'pre-projects':
+        return <PreProjectPage onStartProject={(_id, name) => { setShowNewProject(true); toast.info(`已关联预立项「${name}」，请继续填写立项信息`); }} />;
       case 'projects':
         return <ProjectsPage onNewProject={() => setShowNewProject(true)} />;
       case 'milestones':
@@ -78,13 +84,13 @@ function MainApp() {
       case 'reports':
         return <PlaceholderPage title="数据报表" description="项目汇总、合同收支对比、外包商绩效、月度趋势等可视化报表，将在二期上线。" />;
       case 'users':
-        return <PlaceholderPage title="用户管理" description="新建/编辑/启停内外部账号，分配角色权限，管理合作商账号，将在二期上线。" />;
+        return <SystemPage />;
       case 'logs':
         return <PlaceholderPage title="操作日志" description="全平台操作追溯，记录所有用户的关键操作行为，支持按人员/项目/时间筛选，将在二期上线。" />;
       case 'notifications':
         return <PlaceholderPage title="通知设置" description="配置关键事件提醒规则（里程碑截止、合同到期、发票待审批等），将在二期上线。" />;
       case 'settings':
-        return <PlaceholderPage title="系统设置" description="平台基础配置，包括公司信息、审批流程、通知模板等，将在二期上线。" />;
+        return <SystemPage />;
       default:
         return <DashboardBoss />;
     }
@@ -111,10 +117,12 @@ function App() {
           <ContractProvider>
             <TransferProvider>
             <ProjectProvider>
+            <PaymentRequestProvider>
             <TooltipProvider>
               <Toaster />
               <MainApp />
             </TooltipProvider>
+            </PaymentRequestProvider>
             </ProjectProvider>
             </TransferProvider>
           </ContractProvider>

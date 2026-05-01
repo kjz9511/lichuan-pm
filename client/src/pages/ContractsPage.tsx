@@ -21,10 +21,12 @@ import {
   TrendingUp,
   TrendingDown,
   History,
+  SendHorizonal,
 } from 'lucide-react';
 import { useState } from 'react';
 import { Contract, ContractChange, contracts as mockContracts, projects } from '../lib/mockData';
 import { useContracts } from '../contexts/ContractContext';
+import { usePaymentRequests, PaymentRequest } from '../contexts/PaymentRequestContext';
 import { toast } from 'sonner';
 import { useAI } from '@/hooks/useAI';
 
@@ -68,6 +70,33 @@ function ContractCard({ contract, isChild = false, onUpdate }: {
     operator: '何家劲',
   });
   const { run: runAI, loading: aiLoading } = useAI({ stream: true });
+  const { addRequest, requests: allRequests } = usePaymentRequests();
+
+  // 发起付款/收款申请
+  const handleRequestPayment = (stageIdx: number) => {
+    const stage = contract.stages[stageIdx];
+    // 检查是否已有待审核申请
+    const existing = allRequests.find(r =>
+      r.contractId === contract.id && r.stageIndex === stageIdx && r.status === '待财务审核'
+    );
+    if (existing) { toast.info('该节点已有待审核的申请'); return; }
+    const req: PaymentRequest = {
+      id: 'PR-' + Date.now(),
+      contractId: contract.id,
+      contractName: contract.contractName,
+      projectId: contract.projectId,
+      projectName: contract.projectId,
+      stageIndex: stageIdx,
+      stageName: stage.name,
+      amount: stage.amount,
+      type: contract.type === '甲方合同' ? '收款' : '付款',
+      initiator: '张伟',
+      initiatedAt: new Date().toISOString().slice(0, 10),
+      status: '待财务审核',
+    };
+    addRequest(req);
+    toast.success(`已发起${req.type}申请：${stage.name} ¥${stage.amount.toLocaleString()}，等待财务审核`);
+  };
 
   const changes = contract.changes || [];
   const currentAmount = changes.length > 0
@@ -288,7 +317,7 @@ function ContractCard({ contract, isChild = false, onUpdate }: {
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-medium text-foreground">¥{stage.amount.toLocaleString()}</span>
                       <PaymentStageBadge status={stage.status} />
-                      {/* 快捷标记按钮 */}
+                      {/* 快捷标记按钮 + 发起申请 */}
                       {onUpdate && (
                         isPaid ? (
                           <button
@@ -298,17 +327,37 @@ function ContractCard({ contract, isChild = false, onUpdate }: {
                             撤销
                           </button>
                         ) : (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleMarkStage(i, '已回款'); }}
-                            className={cn(
-                              'text-[10px] px-2 py-0.5 rounded border transition-colors whitespace-nowrap',
-                              contract.type === '甲方合同'
-                                ? 'border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10'
-                                : 'border-amber-500/40 text-amber-400 hover:bg-amber-500/10'
-                            )}
-                          >
-                            {contract.type === '甲方合同' ? '标记已收' : '标记已付'}
-                          </button>
+                          <>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleMarkStage(i, '已回款'); }}
+                              className={cn(
+                                'text-[10px] px-2 py-0.5 rounded border transition-colors whitespace-nowrap',
+                                contract.type === '甲方合同'
+                                  ? 'border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10'
+                                  : 'border-amber-500/40 text-amber-400 hover:bg-amber-500/10'
+                              )}
+                            >
+                              {contract.type === '甲方合同' ? '标记已收' : '标记已付'}
+                            </button>
+                            {(() => {
+                              const hasPending = allRequests.some(r =>
+                                r.contractId === contract.id && r.stageIndex === i && r.status === '待财务审核'
+                              );
+                              return hasPending ? (
+                                <span className="text-[10px] px-2 py-0.5 rounded border border-blue-500/30 text-blue-400 whitespace-nowrap">
+                                  审核中
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleRequestPayment(i); }}
+                                  className="text-[10px] px-2 py-0.5 rounded border border-blue-500/40 text-blue-400 hover:bg-blue-500/10 transition-colors whitespace-nowrap flex items-center gap-0.5"
+                                >
+                                  <SendHorizonal className="w-2.5 h-2.5" />
+                                  发起申请
+                                </button>
+                              );
+                            })()}
+                          </>
                         )
                       )}
                     </div>

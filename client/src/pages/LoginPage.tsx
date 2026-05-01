@@ -1,29 +1,54 @@
 // 厉川外包项目管理平台 — 登录页
-// 设计风格：深色专业管理台风，左侧品牌区 + 右侧登录表单
-
+// 设计风格：深色专业管理台风，左侧品牌区 + 右侧账号密码登录
+// 账号数据来自 SystemPage 的 INIT_USERS，根据账号角色自动进入对应视图
 import { cn } from '@/lib/utils';
-import { Eye, EyeOff, Lock, User } from 'lucide-react';
+import { Eye, EyeOff, Lock, User, AlertCircle } from 'lucide-react';
 import { useState } from 'react';
-import { ROLES, Role } from '../contexts/RoleContext';
+import { Role } from '../contexts/RoleContext';
+import { INIT_USERS } from './SystemPage';
 
 interface LoginPageProps {
-  onLogin: (role: Role) => void;
+  onLogin: (role: Role, name?: string) => void;
 }
+
+const DEMO_ACCOUNTS = [
+  { username: 'hejj',     password: 'boss123',   label: '老板',    color: 'text-purple-400' },
+  { username: 'zhangwei', password: 'pm123',     label: 'PM 张伟', color: 'text-blue-400' },
+  { username: 'licw',     password: 'fin123',    label: '财务',    color: 'text-emerald-400' },
+  { username: 'xingchen', password: 'vendor123', label: '供应商',  color: 'text-amber-400' },
+];
 
 export default function LoginPage({ onLogin }: LoginPageProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<Role>('boss');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   function handleLogin(e: React.FormEvent) {
     e.preventDefault();
+    setError('');
+    if (!username.trim() || !password.trim()) { setError('请输入账号和密码'); return; }
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
-      onLogin(selectedRole);
-    }, 800);
+      const user = INIT_USERS.find(u => u.username === username.trim());
+      if (!user) { setError('账号不存在，请检查输入'); return; }
+      if (user.status === 'disabled') { setError('该账号已被停用，请联系管理员'); return; }
+      if (user.password !== password) { setError('密码错误，请重新输入'); return; }
+      // PM 角色按姓名映射
+      let role: Role = user.role as Role;
+      if (user.role === 'pm') {
+        if (user.name === '刘芳') role = 'pm2';
+        else if (user.name === '陈建国') role = 'pm3';
+        else role = 'pm';
+      }
+      onLogin(role, user.name);
+    }, 600);
+  }
+
+  function quickFill(acc: typeof DEMO_ACCOUNTS[0]) {
+    setUsername(acc.username); setPassword(acc.password); setError('');
   }
 
   return (
@@ -101,28 +126,16 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             <p className="text-sm text-muted-foreground">登录厉川外包项目管理平台</p>
           </div>
 
-          {/* 角色快速选择（原型演示用） */}
-          <div className="mb-6">
-            <div className="text-xs font-medium text-muted-foreground mb-2">原型演示 — 选择登录角色</div>
-            <div className="grid grid-cols-2 gap-2">
-              {ROLES.map(r => (
-                <button
-                  key={r.id}
-                  type="button"
-                  onClick={() => setSelectedRole(r.id)}
-                  className={cn(
-                    'flex items-center gap-2 px-3 py-2 rounded-lg border text-xs transition-all',
-                    selectedRole === r.id
-                      ? 'border-blue-500 bg-blue-600/20 text-foreground'
-                      : 'border-border bg-secondary/30 text-muted-foreground hover:border-border/80'
-                  )}
-                >
-                  <div className={cn('w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold', r.bgColor, r.color)}>
-                    {r.avatar}
-                  </div>
-                  <div className="text-left">
-                    <div className="font-medium text-foreground">{r.name}</div>
-                    <div className={cn('text-[10px]', r.color)}>{r.label}</div>
+          {/* 演示账号快速填入 */}
+          <div className="mb-5 p-3 bg-slate-800/60 border border-slate-700 rounded-xl">
+            <div className="text-xs text-muted-foreground mb-2 font-medium">演示账号（点击快速填入）</div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {DEMO_ACCOUNTS.map(acc => (
+                <button key={acc.username} type="button" onClick={() => quickFill(acc)}
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-700/50 hover:bg-slate-700 border border-slate-600/50 transition-colors text-left">
+                  <div className="text-xs">
+                    <span className={cn('font-medium', acc.color)}>{acc.label}</span>
+                    <span className="text-slate-500 ml-1">@{acc.username}</span>
                   </div>
                 </button>
               ))}
@@ -137,8 +150,8 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                 <input
                   type="text"
                   value={username}
-                  onChange={e => setUsername(e.target.value)}
-                  placeholder="请输入账号"
+                  onChange={e => { setUsername(e.target.value); setError(''); }}
+                  placeholder="请输入登录账号"
                   className="w-full h-10 pl-9 pr-3 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                 />
               </div>
@@ -151,7 +164,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
-                  onChange={e => setPassword(e.target.value)}
+                  onChange={e => { setPassword(e.target.value); setError(''); }}
                   placeholder="请输入密码"
                   className="w-full h-10 pl-9 pr-9 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                 />
@@ -165,6 +178,12 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               </div>
             </div>
 
+            {error && (
+              <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                {error}
+              </div>
+            )}
             <button
               type="submit"
               disabled={loading}
@@ -180,7 +199,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           </form>
 
           <div className="mt-6 text-center text-xs text-muted-foreground">
-            原型演示版本 · 无需真实账号密码
+            如忘记密码请联系系统管理员重置
           </div>
         </div>
       </div>
