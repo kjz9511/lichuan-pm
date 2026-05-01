@@ -16,6 +16,11 @@ export interface PaymentRequest {
   initiator: string;        // PM 姓名
   initiatedAt: string;      // 发起日期
   status: PaymentRequestStatus;
+  // PM 发起时填写的资料
+  pmNote?: string;           // PM 申请说明
+  acceptanceFile?: string;   // 项目验收单文件名
+  deliveryFile?: string;     // 合同交付物确认单文件名
+  invoiceFile?: string;      // 发票文件名（PM上传）
   // 财务审核字段
   invoiceNo?: string;       // OCR 识别的发票号
   invoiceTax?: string;      // 税号

@@ -31,6 +31,7 @@ import {
 import { useAI } from '@/hooks/useAI';
 import { useTransfer } from '../contexts/TransferContext';
 import { useProject } from '../contexts/ProjectContext';
+import { Bell, FolderPlus } from 'lucide-react';
 
 function HealthBadge({ health }: { health: 'green' | 'yellow' | 'red' }) {
   if (health === 'green') return <span className="badge-green px-2 py-0.5 rounded text-xs font-medium">健康</span>;
@@ -53,9 +54,10 @@ const STAGE_COLORS = ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#6b7280'];
 export default function DashboardBoss() {
   const activeProjects = projects.filter(p => p.status === '进行中');
   const { requests, approveRequest, rejectRequest } = useTransfer();
-  const { updateManager } = useProject();
+  const { updateManager, newProjectNotifications, markNotificationRead } = useProject();
   const pendingTransfers = requests.filter(r => r.status === 'pending');
-  const totalPending = 2 + pendingTransfers.length;
+  const unreadNotifications = newProjectNotifications.filter(n => !n.read);
+  const totalPending = 2 + pendingTransfers.length + unreadNotifications.length;
 
   return (
     <div className="p-6 space-y-6">
@@ -230,15 +232,57 @@ export default function DashboardBoss() {
         </div>
       </div>
 
+      {/* 立项通知区块 */}
+      {unreadNotifications.length > 0 && (
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Bell className="w-4 h-4 text-amber-400" />
+              <span className="text-sm font-semibold text-foreground">新项目立项通知</span>
+              <span className="w-5 h-5 rounded-full bg-amber-500/20 text-amber-400 text-[10px] inline-flex items-center justify-center font-bold">{unreadNotifications.length}</span>
+            </div>
+            <button
+              onClick={() => unreadNotifications.forEach(n => markNotificationRead(n.id))}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >全部标读</button>
+          </div>
+          <div className="divide-y divide-border/50">
+            {unreadNotifications.map(n => (
+              <div key={n.id} className="px-4 py-3 hover:bg-accent/30 transition-colors">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-green-500/15 flex items-center justify-center shrink-0 mt-0.5">
+                      <FolderPlus className="w-3.5 h-3.5 text-green-400" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="px-1.5 py-0.5 bg-green-500/15 text-green-400 text-[10px] rounded font-medium">新项目立项</span>
+                        <span className="text-xs font-medium text-foreground">{n.projectName}</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground">PM: {n.manager} · 合同额: ¥{(n.contractAmount / 10000).toFixed(0)}万</div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">立项时间：{n.createdAt}</div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => markNotificationRead(n.id)}
+                    className="text-[10px] px-2 py-0.5 rounded border border-slate-600 text-slate-400 hover:border-green-500/50 hover:text-green-400 transition-colors ml-2 shrink-0"
+                  >已知晓</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 底部：待审批 + 操作日志 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* 待审批 */}
         <div className="bg-card border border-border rounded-xl overflow-hidden">
           <div className="px-4 py-3 border-b border-border flex items-center gap-2">
             <span className="text-sm font-semibold text-foreground">待审批事项</span>
-            <span className="w-5 h-5 rounded-full bg-red-500/20 text-red-400 text-[10px] inline-flex items-center justify-center font-bold">{totalPending}</span>
-          </div>
-          <div className="divide-y divide-border/50">
+            <span className="w-5 h-5 rounded-full bg-red-500/20 text-red-400 
+text-[10px] inline-flex items-center justify-center font-bold">{totalPending}</span>
+          </div>          <div className="divide-y divide-border/50">
             {/* 项目移交申请 */}
             {pendingTransfers.map(req => (
               <div key={req.id} className="px-4 py-3 hover:bg-accent/30 transition-colors">

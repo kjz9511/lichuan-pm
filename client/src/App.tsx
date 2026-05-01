@@ -10,8 +10,9 @@ import Sidebar from "./components/Sidebar";
 import { RoleProvider, useRole, Role } from "./contexts/RoleContext";
 import { ContractProvider, useContracts } from "./contexts/ContractContext";
 import { TransferProvider } from "./contexts/TransferContext";
-import { ProjectProvider } from "./contexts/ProjectContext";
+import { ProjectProvider, useProject } from "./contexts/ProjectContext";
 import { PaymentRequestProvider } from "./contexts/PaymentRequestContext";
+import { InvoiceProvider } from "./contexts/InvoiceContext";
 import { Contract } from "./lib/mockData";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -38,6 +39,7 @@ function MainApp() {
   const [showNewProject, setShowNewProject] = useState(false);
   const { role, setRole } = useRole();
   const { addContract } = useContracts();
+  const { addProject } = useProject();
 
   function handleLogin(selectedRole: Role, _name?: string) {
     setRole(selectedRole);
@@ -58,12 +60,13 @@ function MainApp() {
       return <NewProjectPage
         onBack={() => setShowNewProject(false)}
         onContractCreated={(c: Contract) => { addContract(c); }}
+        onProjectCreated={(p) => { addProject(p); }}
       />;
     }
     switch (activePage) {
       case 'dashboard':
         if (role === 'boss') return <DashboardBoss />;
-        if (role === 'pm' || role === 'pm2' || role === 'pm3') return <DashboardPM />;
+        if (role === 'pm' || role === 'pm2' || role === 'pm3') return <DashboardPM onNewProject={() => setShowNewProject(true)} />;
         if (role === 'vendor') return <DashboardVendor />;
         if (role === 'finance') return <DashboardFinance />;
         return <DashboardBoss />;
@@ -118,10 +121,12 @@ function App() {
             <TransferProvider>
             <ProjectProvider>
             <PaymentRequestProvider>
+            <InvoiceProvider>
             <TooltipProvider>
               <Toaster />
               <MainApp />
             </TooltipProvider>
+            </InvoiceProvider>
             </PaymentRequestProvider>
             </ProjectProvider>
             </TransferProvider>

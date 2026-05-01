@@ -1054,13 +1054,14 @@ function Step4({ projectData, contractData, aiResult, onConfirm, confirmed }:
 }
 
 // ── 主页面 ──────────────────────────────────────────────────
-import type { Contract } from '../lib/mockData';
+import type { Contract, Project } from '../lib/mockData';
 interface NewProjectPageProps {
   onBack?: () => void;
   onContractCreated?: (c: Contract) => void;
+  onProjectCreated?: (p: Project) => void;
 }
 
-export default function NewProjectPage({ onBack, onContractCreated }: NewProjectPageProps) {
+export default function NewProjectPage({ onBack, onContractCreated, onProjectCreated }: NewProjectPageProps) {
   const [, navigate] = useLocation();
   const [step, setStep] = useState(1);
   const [pmConfirmed, setPmConfirmed] = useState(false);
@@ -1103,11 +1104,35 @@ export default function NewProjectPage({ onBack, onContractCreated }: NewProject
   const handleSign = () => {
     setDone(true);
     toast.success(`项目「${step1.name}」已正式立项！`);
+    const now = new Date().toISOString().slice(0, 10);
+    const baseUid = String(Date.now()).slice(-4);
+    const projectId = `PRJ-NEW-${baseUid}`;
+    // 立项完成 → 写入项目台账
+    if (onProjectCreated) {
+      const totalAmount = step2.contracts.reduce((s, c) => s + (Number(c.amount) || 0), 0);
+      const newProject: Project = {
+        id: projectId,
+        name: step1.name,
+        manager: step1.manager,
+        client: step2.contracts[0]?.client || '—',
+        status: '进行中',
+        stage: '需求确认',
+        progress: 0,
+        health: 'green',
+        startDate: step1.startDate,
+        endDate: step1.endDate,
+        budget: Number(step1.budget) || totalAmount,
+        spent: 0,
+        vendor: '—',
+        contractAmount: totalAmount,
+        paidAmount: 0,
+        members: step1.members.map((m: { name: string }) => m.name),
+        description: step1.description,
+      };
+      onProjectCreated(newProject);
+    }
     // 立项完成 → 自动将所有甲方合同写入合同台账
     if (onContractCreated) {
-      const now = new Date().toISOString().slice(0, 10);
-      const baseUid = String(Date.now()).slice(-4);
-      const projectId = `PRJ-NEW-${baseUid}`;
       step2.contracts.forEach((c, idx) => {
         if (!c.contractName || !c.client || !c.amount) return;
         const uid = `${baseUid}-${idx}`;

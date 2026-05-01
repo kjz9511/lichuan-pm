@@ -4,11 +4,14 @@ import { cn } from '@/lib/utils';
 import {
   Bell, Bot, FileUp, Receipt, FolderOpen, Upload, X, CheckCircle2,
   FileCode2, FileText, Figma, Package, File, ChevronDown, ChevronUp, Plus,
-  Paperclip, Trash2, Clock
+  Paperclip, Trash2, Clock, ArrowRight, AlertCircle, DollarSign, Hash
 } from 'lucide-react';
-import { invoices, milestones, notifications, projects } from '../lib/mockData';
+import { milestones, notifications, projects } from '../lib/mockData';
+import type { Invoice } from '../lib/mockData';
+import { useInvoices } from '../contexts/InvoiceContext';
 import { toast } from 'sonner';
 import { useState, useRef } from 'react';
+import { useLocation } from 'wouter';
 
 // ── 交付物类型配置 ─────────────────────────────────────────
 const DELIVERY_TYPES = [
@@ -34,7 +37,7 @@ interface ProjectDelivery {
   files: DeliveryFile[];
 }
 
-// ── 上传弹窗 ───────────────────────────────────────────────
+// ── 上传交付物弹窗 ─────────────────────────────────────────
 function UploadDialog({
   open, onClose, projectName, onUpload,
 }: {
@@ -183,6 +186,165 @@ function UploadDialog({
   );
 }
 
+// ── 提交发票弹窗 ───────────────────────────────────────────
+interface InvoiceFormData {
+  invoiceNo: string;
+  amount: string;
+  projectId: string;
+  remark: string;
+  fileName: string;
+}
+
+function SubmitInvoiceDialog({
+  open,
+  onClose,
+  onSubmit,
+  vendorProjects,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSubmit: (data: InvoiceFormData) => void;
+  vendorProjects: typeof projects;
+}) {
+  const [form, setForm] = useState<InvoiceFormData>({
+    invoiceNo: '',
+    amount: '',
+    projectId: '',
+    remark: '',
+    fileName: '',
+  });
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleSubmit = () => {
+    if (!form.invoiceNo.trim()) { toast.error('请填写发票编号'); return; }
+    if (!form.amount || isNaN(Number(form.amount)) || Number(form.amount) <= 0) { toast.error('请填写正确的发票金额'); return; }
+    if (!form.projectId) { toast.error('请选择关联项目'); return; }
+    onSubmit({ ...form, fileName: pendingFile?.name || '' });
+    setForm({ invoiceNo: '', amount: '', projectId: '', remark: '', fileName: '' });
+    setPendingFile(null);
+    onClose();
+  };
+
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md shadow-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700">
+          <div className="flex items-center gap-2">
+            <Receipt className="w-4 h-4 text-emerald-400" />
+            <span className="text-sm font-semibold text-slate-100">提交发票</span>
+          </div>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          {/* 发票编号 */}
+          <div>
+            <label className="text-xs font-medium text-slate-400 mb-1.5 flex items-center gap-1">
+              <Hash className="w-3 h-3" />
+              发票编号 <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="text"
+              value={form.invoiceNo}
+              onChange={e => setForm(f => ({ ...f, invoiceNo: e.target.value }))}
+              placeholder="如：INV-2026-0501"
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            />
+          </div>
+          {/* 发票金额 */}
+          <div>
+            <label className="text-xs font-medium text-slate-400 mb-1.5 flex items-center gap-1">
+              <DollarSign className="w-3 h-3" />
+              发票金额（元）<span className="text-red-400">*</span>
+            </label>
+            <input
+              type="number"
+              value={form.amount}
+              onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
+              placeholder="请输入金额，如：90000"
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            />
+          </div>
+          {/* 关联项目 */}
+          <div>
+            <label className="text-xs font-medium text-slate-400 mb-1.5 block">
+              关联项目 <span className="text-red-400">*</span>
+            </label>
+            <select
+              value={form.projectId}
+              onChange={e => setForm(f => ({ ...f, projectId: e.target.value }))}
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            >
+              <option value="">请选择项目</option>
+              {vendorProjects.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+          {/* 上传发票图片 */}
+          <div>
+            <label className="text-xs font-medium text-slate-400 mb-1.5 block">上传发票图片（可选）</label>
+            <div
+              onClick={() => inputRef.current?.click()}
+              className="border border-dashed border-slate-700 hover:border-slate-500 rounded-lg p-3 cursor-pointer transition-colors flex items-center gap-3 bg-slate-800/40"
+            >
+              <input
+                ref={inputRef}
+                type="file"
+                accept=".jpg,.jpeg,.png,.pdf"
+                className="hidden"
+                onChange={e => e.target.files?.[0] && setPendingFile(e.target.files[0])}
+              />
+              <FileUp className="w-4 h-4 text-slate-500 shrink-0" />
+              {pendingFile ? (
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <span className="text-xs text-slate-300 truncate">{pendingFile.name}</span>
+                  <button
+                    onClick={e => { e.stopPropagation(); setPendingFile(null); }}
+                    className="text-slate-600 hover:text-red-400 shrink-0"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <span className="text-xs text-slate-500">点击上传 JPG / PNG / PDF</span>
+              )}
+            </div>
+          </div>
+          {/* 备注 */}
+          <div>
+            <label className="text-xs font-medium text-slate-400 mb-1.5 block">备注</label>
+            <textarea
+              value={form.remark}
+              onChange={e => setForm(f => ({ ...f, remark: e.target.value }))}
+              placeholder="可填写付款节点、合同编号等说明..."
+              rows={2}
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none"
+            />
+          </div>
+          {/* 提示 */}
+          <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
+            <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+            <p className="text-[11px] text-amber-300/80">提交后财务将进行OCR识别与人工审核，审核通过后安排付款。</p>
+          </div>
+        </div>
+        <div className="flex gap-3 px-5 pb-5">
+          <button onClick={onClose} className="flex-1 h-9 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm rounded-lg transition-colors">
+            取消
+          </button>
+          <button onClick={handleSubmit} className="flex-1 h-9 bg-emerald-600 hover:bg-emerald-700 text-white text-sm rounded-lg transition-colors flex items-center justify-center gap-2">
+            <Receipt className="w-4 h-4" />
+            提交发票
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── 项目交付物卡片 ─────────────────────────────────────────
 type ProjectType = typeof projects[0];
 function ProjectDeliveryCard({
@@ -264,15 +426,18 @@ function ProjectDeliveryCard({
 
 // ── 主页面 ─────────────────────────────────────────────────
 export default function DashboardVendor() {
+  const [, navigate] = useLocation();
   const myProjects = projects.filter(p => p.vendor === '星辰前端工作室');
   const myMilestones = milestones.filter(m => m.projectId === 'PRJ-2026-001');
-  const myInvoices = invoices.filter(i => i.vendor === '星辰前端工作室');
   const unreadNotifications = notifications.filter(n => !n.read).slice(0, 3);
 
+  const { invoiceList: allInvoices, addInvoice } = useInvoices();
+  const myInvoices = allInvoices.filter(i => i.vendor === '星辰前端工作室');
   const [deliveries, setDeliveries] = useState<ProjectDelivery[]>(
     myProjects.map(p => ({ projectId: p.id, files: [] }))
   );
   const [uploadTarget, setUploadTarget] = useState<string | null>(null);
+  const [showInvoiceDialog, setShowInvoiceDialog] = useState(false);
 
   const handleUpload = (projectId: string, file: DeliveryFile) => {
     setDeliveries(prev => prev.map(d =>
@@ -285,6 +450,21 @@ export default function DashboardVendor() {
       d.projectId === projectId ? { ...d, files: d.files.filter(f => f.id !== fileId) } : d
     ));
     toast.success('已删除交付物');
+  };
+
+  const handleSubmitInvoice = (data: InvoiceFormData) => {
+    const newInvoice: Invoice = {
+      id: data.invoiceNo || `INV-${Date.now()}`,
+      projectId: data.projectId,
+      projectName: myProjects.find(p => p.id === data.projectId)?.name || '',
+      vendor: '星辰前端工作室',
+      amount: Number(data.amount),
+      submitDate: new Date().toISOString().slice(0, 10),
+      status: '待审批',
+      remark: data.remark,
+    };
+    addInvoice(newInvoice);
+    toast.success(`发票「${newInvoice.id}」已提交，等待财务审核`);
   };
 
   const uploadProject = myProjects.find(p => p.id === uploadTarget);
@@ -340,6 +520,119 @@ export default function DashboardVendor() {
         </div>
       </div>
 
+      {/* ── 里程碑 & 审核状态 ── */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <Clock className="w-4 h-4 text-purple-400" />
+            里程碑 & 审核状态
+          </div>
+          <button
+            onClick={() => navigate('/milestones')}
+            className="flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300 transition-colors"
+          >
+            查看全部 <ArrowRight className="w-3 h-3" />
+          </button>
+        </div>
+        <div className="space-y-2">
+          {myMilestones.map(m => (
+            <div key={m.id} className="bg-card border border-border rounded-lg px-4 py-3">
+              <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium text-foreground">{m.name}</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">截止：{m.dueDate}</div>
+                  {m.aiScore !== undefined && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <Bot className="w-3 h-3 text-blue-400" />
+                      <span className={cn('text-[10px]', m.aiScore >= 85 ? 'text-emerald-400' : m.aiScore >= 70 ? 'text-amber-400' : 'text-red-400')}>
+                        AI评分 {m.aiScore}分
+                      </span>
+                      {m.issues && m.issues.length > 0 && (
+                        <span className="text-[10px] text-red-400 ml-1">{m.issues.length}个问题需修改</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={cn(
+                    'px-2 py-0.5 rounded text-xs font-medium',
+                    m.status === '已通过' ? 'badge-green' :
+                    m.status === '审核中' ? 'badge-yellow' :
+                    m.status === '待提交' ? 'badge-gray' : 'badge-red'
+                  )}>{m.status}</span>
+                  {/* 待提交状态显示上传交付物按钮 */}
+                  {m.status === '待提交' && (
+                    <button
+                      onClick={() => navigate('/milestones')}
+                      className="flex items-center gap-1 px-2.5 py-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 rounded text-[10px] transition-all"
+                    >
+                      <Upload className="w-3 h-3" />
+                      上传交付物
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── 发票 & 付款 ── */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <Receipt className="w-4 h-4 text-emerald-400" />
+            我的发票 & 付款
+          </div>
+          <button
+            onClick={() => setShowInvoiceDialog(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs transition-all"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            提交发票
+          </button>
+        </div>
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left px-4 py-2.5 text-muted-foreground font-medium">发票编号</th>
+                <th className="text-left px-4 py-2.5 text-muted-foreground font-medium">关联项目</th>
+                <th className="text-left px-4 py-2.5 text-muted-foreground font-medium">金额</th>
+                <th className="text-left px-4 py-2.5 text-muted-foreground font-medium">提交日期</th>
+                <th className="text-left px-4 py-2.5 text-muted-foreground font-medium">状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              {myInvoices.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground text-xs">
+                    暂无发票记录，点击「提交发票」开始提交
+                  </td>
+                </tr>
+              ) : (
+                myInvoices.map(inv => (
+                  <tr key={inv.id} className="border-b border-border/50 hover:bg-accent/30">
+                    <td className="px-4 py-3 font-medium text-foreground">{inv.id}</td>
+                    <td className="px-4 py-3 text-muted-foreground truncate max-w-[120px]">{inv.projectName}</td>
+                    <td className="px-4 py-3 font-bold text-foreground">¥{inv.amount.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{inv.submitDate}</td>
+                    <td className="px-4 py-3">
+                      <span className={cn(
+                        'px-2 py-0.5 rounded text-xs font-medium',
+                        inv.status === '已付款' ? 'badge-green' :
+                        inv.status === '待审批' ? 'badge-yellow' :
+                        inv.status === '已驳回' ? 'badge-red' : 'badge-blue'
+                      )}>{inv.status}</span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* 站内通知 */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <div className="px-4 py-3 border-b border-border flex items-center gap-2">
@@ -363,87 +656,7 @@ export default function DashboardVendor() {
         </div>
       </div>
 
-      {/* 里程碑 & 审核状态 */}
-      <div>
-        <div className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-          <Clock className="w-4 h-4 text-purple-400" />
-          里程碑 & 审核状态
-        </div>
-        <div className="space-y-2">
-          {myMilestones.map(m => (
-            <div key={m.id} className="bg-card border border-border rounded-lg px-4 py-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-medium text-foreground">{m.name}</div>
-                  <div className="text-[10px] text-muted-foreground mt-0.5">截止：{m.dueDate}</div>
-                  {m.aiScore !== undefined && (
-                    <div className="flex items-center gap-1 mt-1">
-                      <Bot className="w-3 h-3 text-blue-400" />
-                      <span className={cn('text-[10px]', m.aiScore >= 85 ? 'text-emerald-400' : m.aiScore >= 70 ? 'text-amber-400' : 'text-red-400')}>
-                        AI评分 {m.aiScore}分
-                      </span>
-                      {m.issues && m.issues.length > 0 && (
-                        <span className="text-[10px] text-red-400">{m.issues.length}个问题需修改</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <span className={cn(
-                  'px-2 py-0.5 rounded text-xs font-medium',
-                  m.status === '已通过' ? 'badge-green' :
-                  m.status === '审核中' ? 'badge-yellow' :
-                  m.status === '待提交' ? 'badge-gray' : 'badge-red'
-                )}>{m.status}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* 发票 & 付款 */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <div className="text-sm font-semibold text-foreground flex items-center gap-2">
-            <Receipt className="w-4 h-4 text-emerald-400" />
-            我的发票 & 付款
-          </div>
-          <button
-            onClick={() => toast.info('请前往「发票 & 结算」页面提交发票')}
-            className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
-          >
-            + 提交发票
-          </button>
-        </div>
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left px-4 py-2.5 text-muted-foreground font-medium">发票编号</th>
-                <th className="text-left px-4 py-2.5 text-muted-foreground font-medium">金额</th>
-                <th className="text-left px-4 py-2.5 text-muted-foreground font-medium">提交日期</th>
-                <th className="text-left px-4 py-2.5 text-muted-foreground font-medium">状态</th>
-              </tr>
-            </thead>
-            <tbody>
-              {myInvoices.map(inv => (
-                <tr key={inv.id} className="border-b border-border/50 hover:bg-accent/30">
-                  <td className="px-4 py-3 font-medium text-foreground">{inv.id}</td>
-                  <td className="px-4 py-3 font-bold text-foreground">¥{inv.amount.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{inv.submitDate}</td>
-                  <td className="px-4 py-3">
-                    <span className={cn(
-                      'px-2 py-0.5 rounded text-xs font-medium',
-                      inv.status === '已付款' ? 'badge-green' : inv.status === '待审批' ? 'badge-yellow' : 'badge-blue'
-                    )}>{inv.status}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* 上传弹窗 */}
+      {/* 上传交付物弹窗 */}
       {uploadTarget && uploadProject && (
         <UploadDialog
           open={true}
@@ -452,6 +665,14 @@ export default function DashboardVendor() {
           onUpload={(file) => handleUpload(uploadTarget, file)}
         />
       )}
+
+      {/* 提交发票弹窗 */}
+      <SubmitInvoiceDialog
+        open={showInvoiceDialog}
+        onClose={() => setShowInvoiceDialog(false)}
+        onSubmit={handleSubmitInvoice}
+        vendorProjects={myProjects}
+      />
     </div>
   );
 }

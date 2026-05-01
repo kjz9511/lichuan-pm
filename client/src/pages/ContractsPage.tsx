@@ -22,8 +22,14 @@ import {
   TrendingDown,
   History,
   SendHorizonal,
+  Upload,
+  Paperclip,
+  FileCheck2,
+  Receipt,
+  Hash,
+  DollarSign,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Contract, ContractChange, contracts as mockContracts, projects } from '../lib/mockData';
 import { useContracts } from '../contexts/ContractContext';
 import { usePaymentRequests, PaymentRequest } from '../contexts/PaymentRequestContext';
@@ -54,6 +60,217 @@ function PaymentStageBadge({ status }: { status: string }) {
   return <span className={cn(map[status] || 'badge-gray', 'px-2 py-0.5 rounded text-[10px] font-medium')}>{status}</span>;
 }
 
+// ─── 发起付款/收款申请弹窗 ──────────────────────────────────
+interface PaymentRequestDialogProps {
+  open: boolean;
+  onClose: () => void;
+  contract: Contract;
+  stageIndex: number;
+  stageName: string;
+  stageAmount: number;
+  onSubmit: (data: { pmNote: string; acceptanceFile: string; deliveryFile: string; invoiceFile: string }) => void;
+}
+
+function PaymentRequestDialog({
+  open, onClose, contract, stageIndex, stageName, stageAmount, onSubmit
+}: PaymentRequestDialogProps) {
+  const [pmNote, setPmNote] = useState('');
+  const [acceptanceFile, setAcceptanceFile] = useState<File | null>(null);
+  const [deliveryFile, setDeliveryFile] = useState<File | null>(null);
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
+  const acceptanceRef = useRef<HTMLInputElement>(null);
+  const deliveryRef = useRef<HTMLInputElement>(null);
+  const invoiceRef = useRef<HTMLInputElement>(null);
+  const isPayable = contract.type !== '甲方合同';
+
+  const handleSubmit = () => {
+    onSubmit({
+      pmNote,
+      acceptanceFile: acceptanceFile?.name || '',
+      deliveryFile: deliveryFile?.name || '',
+      invoiceFile: invoiceFile?.name || '',
+    });
+    setPmNote('');
+    setAcceptanceFile(null);
+    setDeliveryFile(null);
+    setInvoiceFile(null);
+    onClose();
+  };
+
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700">
+          <div>
+            <div className="flex items-center gap-2">
+              <SendHorizonal className="w-4 h-4 text-blue-400" />
+              <span className="text-sm font-semibold text-slate-100">
+                发起{isPayable ? '付款' : '收款'}申请
+              </span>
+            </div>
+            <div className="text-xs text-slate-500 mt-0.5">
+              {contract.contractName} · {stageName} · ¥{stageAmount.toLocaleString()}
+            </div>
+          </div>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {/* 基本信息（只读展示） */}
+          <div className="grid grid-cols-2 gap-3 bg-slate-800/50 rounded-xl p-3">
+            <div>
+              <div className="text-[10px] text-slate-500 mb-0.5">申请类型</div>
+              <div className="text-xs font-medium text-slate-200">
+                <span className={cn(
+                  'px-2 py-0.5 rounded text-xs font-medium',
+                  isPayable ? 'bg-amber-500/15 text-amber-400' : 'bg-emerald-500/15 text-emerald-400'
+                )}>
+                  {isPayable ? '↓ 付款申请' : '↑ 收款申请'}
+                </span>
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] text-slate-500 mb-0.5">申请金额</div>
+              <div className="text-sm font-bold text-slate-100">¥{stageAmount.toLocaleString()}</div>
+            </div>
+            <div>
+              <div className="text-[10px] text-slate-500 mb-0.5">付款节点</div>
+              <div className="text-xs text-slate-300">{stageName}</div>
+            </div>
+            <div>
+              <div className="text-[10px] text-slate-500 mb-0.5">{isPayable ? '外协方' : '甲方'}</div>
+              <div className="text-xs text-slate-300 truncate">{contract.vendor}</div>
+            </div>
+          </div>
+
+          {/* 申请说明 */}
+          <div>
+            <label className="text-xs font-medium text-slate-400 mb-1.5 block">
+              申请说明 <span className="text-slate-600">（可选）</span>
+            </label>
+            <textarea
+              value={pmNote}
+              onChange={e => setPmNote(e.target.value)}
+              placeholder={isPayable
+                ? '说明付款原因、合同节点完成情况等...'
+                : '说明收款依据、项目进度、客户确认情况等...'}
+              rows={2}
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+            />
+          </div>
+
+          {/* 附件上传 */}
+          <div>
+            <div className="text-xs font-medium text-slate-400 mb-2">上传附件</div>
+            <div className="space-y-2">
+              {/* 项目验收单 */}
+              <div
+                className="flex items-center gap-3 p-2.5 bg-slate-800/60 border border-slate-700/60 rounded-lg cursor-pointer hover:border-slate-500 transition-colors"
+                onClick={() => acceptanceRef.current?.click()}
+              >
+                <input ref={acceptanceRef} type="file" className="hidden" accept=".pdf,.docx,.doc,.jpg,.png"
+                  onChange={e => setAcceptanceFile(e.target.files?.[0] || null)} />
+                <div className="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0">
+                  <FileCheck2 className="w-3.5 h-3.5 text-emerald-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium text-slate-300">项目验收单</div>
+                  <div className="text-[10px] text-slate-500 truncate">
+                    {acceptanceFile ? acceptanceFile.name : '点击上传 PDF / Word / 图片'}
+                  </div>
+                </div>
+                {acceptanceFile && (
+                  <button onClick={e => { e.stopPropagation(); setAcceptanceFile(null); }}
+                    className="text-slate-600 hover:text-red-400 shrink-0">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                {!acceptanceFile && <Upload className="w-3.5 h-3.5 text-slate-600 shrink-0" />}
+              </div>
+
+              {/* 合同交付物确认单 */}
+              <div
+                className="flex items-center gap-3 p-2.5 bg-slate-800/60 border border-slate-700/60 rounded-lg cursor-pointer hover:border-slate-500 transition-colors"
+                onClick={() => deliveryRef.current?.click()}
+              >
+                <input ref={deliveryRef} type="file" className="hidden" accept=".pdf,.docx,.doc,.jpg,.png"
+                  onChange={e => setDeliveryFile(e.target.files?.[0] || null)} />
+                <div className="w-7 h-7 rounded-lg bg-blue-500/15 flex items-center justify-center shrink-0">
+                  <Paperclip className="w-3.5 h-3.5 text-blue-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium text-slate-300">合同交付物确认单</div>
+                  <div className="text-[10px] text-slate-500 truncate">
+                    {deliveryFile ? deliveryFile.name : '点击上传 PDF / Word / 图片'}
+                  </div>
+                </div>
+                {deliveryFile && (
+                  <button onClick={e => { e.stopPropagation(); setDeliveryFile(null); }}
+                    className="text-slate-600 hover:text-red-400 shrink-0">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                {!deliveryFile && <Upload className="w-3.5 h-3.5 text-slate-600 shrink-0" />}
+              </div>
+
+              {/* 发票 */}
+              <div
+                className="flex items-center gap-3 p-2.5 bg-slate-800/60 border border-slate-700/60 rounded-lg cursor-pointer hover:border-slate-500 transition-colors"
+                onClick={() => invoiceRef.current?.click()}
+              >
+                <input ref={invoiceRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={e => setInvoiceFile(e.target.files?.[0] || null)} />
+                <div className="w-7 h-7 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
+                  <Receipt className="w-3.5 h-3.5 text-amber-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium text-slate-300">发票</div>
+                  <div className="text-[10px] text-slate-500 truncate">
+                    {invoiceFile ? invoiceFile.name : '点击上传发票图片 / PDF'}
+                  </div>
+                </div>
+                {invoiceFile && (
+                  <button onClick={e => { e.stopPropagation(); setInvoiceFile(null); }}
+                    className="text-slate-600 hover:text-red-400 shrink-0">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                {!invoiceFile && <Upload className="w-3.5 h-3.5 text-slate-600 shrink-0" />}
+              </div>
+            </div>
+            <div className="text-[10px] text-slate-600 mt-1.5">附件为可选项，财务审核时可补充上传</div>
+          </div>
+
+          {/* 提示 */}
+          <div className="flex items-start gap-2 bg-blue-500/8 border border-blue-500/20 rounded-lg p-3">
+            <AlertCircle className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
+            <p className="text-[11px] text-blue-300/80">
+              提交后财务将收到审核通知，进行发票核验与付款确认。审核完成后系统将自动通知您。
+            </p>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex gap-3 px-5 pb-5">
+          <button onClick={onClose}
+            className="flex-1 h-9 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm rounded-lg transition-colors">
+            取消
+          </button>
+          <button onClick={handleSubmit}
+            className="flex-1 h-9 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors flex items-center justify-center gap-2">
+            <SendHorizonal className="w-4 h-4" />
+            提交申请
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── 合同卡片（主合同 or 子合同） ─────────────────────────────
 function ContractCard({ contract, isChild = false, onUpdate }: {
   contract: Contract; isChild?: boolean;
@@ -69,17 +286,17 @@ function ContractCard({ contract, isChild = false, onUpdate }: {
     amountAfter: '',
     operator: '何家劲',
   });
+  // 发起申请弹窗状态
+  const [paymentDialogStage, setPaymentDialogStage] = useState<{ idx: number; name: string; amount: number } | null>(null);
   const { run: runAI, loading: aiLoading } = useAI({ stream: true });
   const { addRequest, requests: allRequests } = usePaymentRequests();
 
-  // 发起付款/收款申请
-  const handleRequestPayment = (stageIdx: number) => {
+  // 发起付款/收款申请（弹窗表单提交后调用）
+  const handleRequestPaymentSubmit = (
+    stageIdx: number,
+    data: { pmNote: string; acceptanceFile: string; deliveryFile: string; invoiceFile: string }
+  ) => {
     const stage = contract.stages[stageIdx];
-    // 检查是否已有待审核申请
-    const existing = allRequests.find(r =>
-      r.contractId === contract.id && r.stageIndex === stageIdx && r.status === '待财务审核'
-    );
-    if (existing) { toast.info('该节点已有待审核的申请'); return; }
     const req: PaymentRequest = {
       id: 'PR-' + Date.now(),
       contractId: contract.id,
@@ -93,9 +310,14 @@ function ContractCard({ contract, isChild = false, onUpdate }: {
       initiator: '张伟',
       initiatedAt: new Date().toISOString().slice(0, 10),
       status: '待财务审核',
+      pmNote: data.pmNote,
+      acceptanceFile: data.acceptanceFile,
+      deliveryFile: data.deliveryFile,
+      invoiceFile: data.invoiceFile,
     };
     addRequest(req);
-    toast.success(`已发起${req.type}申请：${stage.name} ¥${stage.amount.toLocaleString()}，等待财务审核`);
+    const attachCount = [data.acceptanceFile, data.deliveryFile, data.invoiceFile].filter(Boolean).length;
+    toast.success(`已发起${req.type}申请：${stage.name} ¥${stage.amount.toLocaleString()}${attachCount > 0 ? `，附件${attachCount}个` : ''}，等待财务审核`);
   };
 
   const changes = contract.changes || [];
@@ -349,7 +571,7 @@ function ContractCard({ contract, isChild = false, onUpdate }: {
                                 </span>
                               ) : (
                                 <button
-                                  onClick={(e) => { e.stopPropagation(); handleRequestPayment(i); }}
+                                  onClick={(e) => { e.stopPropagation(); setPaymentDialogStage({ idx: i, name: stage.name, amount: stage.amount }); }}
                                   className="text-[10px] px-2 py-0.5 rounded border border-blue-500/40 text-blue-400 hover:bg-blue-500/10 transition-colors whitespace-nowrap flex items-center gap-0.5"
                                 >
                                   <SendHorizonal className="w-2.5 h-2.5" />
@@ -525,11 +747,26 @@ function ContractCard({ contract, isChild = false, onUpdate }: {
           </div>
         </div>
       )}
+      {/* 发起申请弹窗 */}
+      {paymentDialogStage && (
+        <PaymentRequestDialog
+          open={true}
+          onClose={() => setPaymentDialogStage(null)}
+          contract={contract}
+          stageIndex={paymentDialogStage.idx}
+          stageName={paymentDialogStage.name}
+          stageAmount={paymentDialogStage.amount}
+          onSubmit={(data) => {
+            handleRequestPaymentSubmit(paymentDialogStage.idx, data);
+            setPaymentDialogStage(null);
+          }}
+        />
+      )}
     </div>
   );
 }
 
-// ─── 录入合同弹窗 ──────────────────────────────────────────────
+// ─── 录入合同弹窗 ──────────────────────────────────
 type ContractType = '甲方合同' | '外协合同';
 
 interface ContractFormState {

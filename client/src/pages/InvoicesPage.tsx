@@ -3,7 +3,8 @@
 
 import { useState, useEffect } from 'react';
 import { useAI } from '@/hooks/useAI';
-import { invoices as initialInvoices, Invoice, projects, contracts } from '@/lib/mockData';
+import { Invoice, projects, contracts } from '@/lib/mockData';
+import { useInvoices } from '@/contexts/InvoiceContext';
 import { usePaymentRequests, PaymentRequest } from '@/contexts/PaymentRequestContext';
 import { useRole } from '@/contexts/RoleContext';
 import { Button } from '@/components/ui/button';
@@ -509,6 +510,38 @@ function PaymentReviewDialog({ open, onClose, request, onApprove, onReject, onCo
             <span className="text-slate-500">发起人</span>
             <span className="text-slate-200">{request.initiator} · {request.initiatedAt}</span>
           </div>
+          {request.pmNote && (
+            <div className="flex justify-between items-start pt-1 border-t border-slate-700/50">
+              <span className="text-slate-500 shrink-0">PM说明</span>
+              <span className="text-slate-300 text-xs text-right max-w-[220px] leading-relaxed">{request.pmNote}</span>
+            </div>
+          )}
+          {(request.acceptanceFile || request.deliveryFile || request.invoiceFile) && (
+            <div className="pt-1 border-t border-slate-700/50 space-y-1.5">
+              <span className="text-slate-500 text-xs">PM 上传附件</span>
+              {request.acceptanceFile && (
+                <div className="flex items-center gap-2 bg-slate-700/40 rounded-lg px-2.5 py-1.5">
+                  <span className="text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">验收单</span>
+                  <span className="text-xs text-slate-300 flex-1 truncate">{request.acceptanceFile}</span>
+                  <button className="text-[10px] text-blue-400 hover:text-blue-300">查看</button>
+                </div>
+              )}
+              {request.deliveryFile && (
+                <div className="flex items-center gap-2 bg-slate-700/40 rounded-lg px-2.5 py-1.5">
+                  <span className="text-[10px] px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded">交付物确认单</span>
+                  <span className="text-xs text-slate-300 flex-1 truncate">{request.deliveryFile}</span>
+                  <button className="text-[10px] text-blue-400 hover:text-blue-300">查看</button>
+                </div>
+              )}
+              {request.invoiceFile && (
+                <div className="flex items-center gap-2 bg-slate-700/40 rounded-lg px-2.5 py-1.5">
+                  <span className="text-[10px] px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded">发票</span>
+                  <span className="text-xs text-slate-300 flex-1 truncate">{request.invoiceFile}</span>
+                  <button className="text-[10px] text-blue-400 hover:text-blue-300">查看</button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Step 1: OCR */}
@@ -735,7 +768,7 @@ function DetailDialog({ open, onClose, invoice }: DetailDialogProps) {
 export default function InvoicesPage() {
   const { role } = useRole();
   const { requests: paymentRequests, updateRequest: updatePaymentRequest } = usePaymentRequests();
-  const [invoiceList, setInvoiceList] = useState<Invoice[]>(initialInvoices);
+  const { invoiceList, addInvoice: _addInvoice, updateInvoice: updateInvoiceCtx } = useInvoices();
   const [reviewTarget, setReviewTarget] = useState<PaymentRequest | null>(null);
   const [mainTab, setMainTab] = useState<'invoices' | 'requests'>('invoices');
   const [submitOpen, setSubmitOpen] = useState(false);
@@ -756,30 +789,21 @@ export default function InvoicesPage() {
   const filtered = filterStatus === '全部' ? invoiceList : invoiceList.filter(i => i.status === filterStatus);
 
   const handleSubmit = (inv: Invoice) => {
-    setInvoiceList(list => [inv, ...list]);
+    _addInvoice(inv);
   };
 
   const handleApprove = (id: string) => {
     const now = new Date().toISOString().slice(0, 10);
-    setInvoiceList(list => list.map(i => i.id === id
-      ? { ...i, status: '已审批', approver: '老板', approveDate: now }
-      : i
-    ));
+    updateInvoiceCtx(id, { status: '已审批', approver: '老板', approveDate: now });
   };
 
   const handleReject = (id: string, reason: string) => {
-    setInvoiceList(list => list.map(i => i.id === id
-      ? { ...i, status: '已驳回', rejectReason: reason }
-      : i
-    ));
+    updateInvoiceCtx(id, { status: '已驳回', rejectReason: reason });
   };
 
   const handlePay = (id: string, voucher: string) => {
     const now = new Date().toISOString().slice(0, 10);
-    setInvoiceList(list => list.map(i => i.id === id
-      ? { ...i, status: '已付款', payDate: now, payVoucher: voucher }
-      : i
-    ));
+    updateInvoiceCtx(id, { status: '已付款', payDate: now, payVoucher: voucher });
   };
   const handlePaymentApprove = (id: string, patch: Partial<PaymentRequest>) => {
     updatePaymentRequest(id, patch);
