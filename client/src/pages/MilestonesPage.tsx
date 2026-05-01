@@ -925,22 +925,7 @@ export default function MilestonesPage() {
                       上传交付物
                     </button>
                   )}
-                  {m.status === '审核中' && (
-                    <div className="flex gap-1.5">
-                      <button
-                        onClick={() => handleApprove(m.id)}
-                        className="flex items-center gap-1 px-2.5 py-1 bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 rounded text-xs hover:bg-emerald-600/30 transition-colors"
-                      >
-                        <CheckCircle2 className="w-3 h-3" /> 通过
-                      </button>
-                      <button
-                        onClick={() => handleReject(m.id)}
-                        className="flex items-center gap-1 px-2.5 py-1 bg-red-600/20 text-red-400 border border-red-500/30 rounded text-xs hover:bg-red-600/30 transition-colors"
-                      >
-                        <XCircle className="w-3 h-3" /> 驳回
-                      </button>
-                    </div>
-                  )}
+
                 </div>
               </div>
             </div>
