@@ -2,9 +2,9 @@
 // 设计风格：深色专业管理台风，AI审核评分 + 状态管理
 // 功能：交付物上传（支持描述/类型）→ AI 自动审查（代码/日报/UI等）→ PM/老板人工通过/驳回
 import { cn } from '@/lib/utils';
-import { Bot, FileUp, Plus, Sparkles, CheckCircle2, XCircle, AlertTriangle, Upload } from 'lucide-react';
+import { Bot, FileUp, Plus, Sparkles, CheckCircle2, XCircle, AlertTriangle, Upload, Archive, FolderOpen, FileText, ChevronDown, ChevronRight, ExternalLink, Search, X as XIcon } from 'lucide-react';
 import { useState } from 'react';
-import { milestones as initialMilestones, projects } from '../lib/mockData';
+import { milestones as initialMilestones, projects, contracts } from '../lib/mockData';
 import { toast } from 'sonner';
 import { useAI } from '@/hooks/useAI';
 import {
@@ -245,8 +245,258 @@ function UploadDialog({ open, onClose, milestone, onSubmit }: UploadDialogProps)
           <button onClick={handleSubmit} disabled={!aiDone}
             className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs transition-colors disabled:opacity-40 flex items-center gap-1.5">
             <Upload className="w-3 h-3" /> 提交并等待人工确认
-          </button>
+           </button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── 项目资产库弹窗 ─────────────────────────────────────────────
+interface AssetLibraryDialogProps {
+  open: boolean;
+  onClose: () => void;
+  projectId: string;
+  milestoneList: MilestoneItem[];
+}
+function AssetLibraryDialog({ open, onClose, projectId, milestoneList }: AssetLibraryDialogProps) {
+  const project = projects.find(p => p.id === projectId);
+  const allContracts = contracts.filter(c => c.projectId === projectId);
+  const allMilestones = milestoneList.filter(m => m.projectId === projectId);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    contracts: true, milestones: true, initDocs: true
+  });
+  const [searchQuery, setSearchQuery] = useState('');
+  const toggleSection = (key: string) =>
+    setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
+
+  const q = searchQuery.trim().toLowerCase();
+
+  // 立项资料（固定示例）
+  const initDocs = [
+    { name: '项目立项报告.docx', type: 'DOC', size: '128 KB', date: project?.startDate || '' },
+    { name: '需求规格说明书.pdf', type: 'PDF', size: '2.4 MB', date: project?.startDate || '' },
+    { name: '项目可行性分析.xlsx', type: 'XLS', size: '86 KB', date: project?.startDate || '' },
+  ];
+
+  const projectContracts = q
+    ? allContracts.filter(c =>
+        c.contractName.toLowerCase().includes(q) ||
+        c.contractNo.toLowerCase().includes(q) ||
+        c.vendor.toLowerCase().includes(q) ||
+        c.type.toLowerCase().includes(q)
+      )
+    : allContracts;
+
+  const projectMilestones = q
+    ? allMilestones.filter(m =>
+        m.name.toLowerCase().includes(q) ||
+        m.type.toLowerCase().includes(q) ||
+        m.submitter.toLowerCase().includes(q) ||
+        (m.deliverableDesc || '').toLowerCase().includes(q)
+      )
+    : allMilestones;
+
+  const filteredInitDocs = q
+    ? initDocs.filter(d => d.name.toLowerCase().includes(q) || d.type.toLowerCase().includes(q))
+    : initDocs;
+
+  const totalResults = projectContracts.length + projectMilestones.length + filteredInitDocs.length;
+
+  const statusColor: Record<string, string> = {
+    '已通过': 'text-emerald-400 bg-emerald-500/10',
+    '审核中': 'text-amber-400 bg-amber-500/10',
+    '已驳回': 'text-red-400 bg-red-500/10',
+    '待提交': 'text-slate-400 bg-slate-500/10',
+    '已提交': 'text-blue-400 bg-blue-500/10',
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent className="bg-slate-900 border-slate-700 text-slate-100 max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogHeader className="shrink-0">
+          <DialogTitle className="text-slate-100 flex items-center gap-2">
+            <Archive className="w-5 h-5 text-blue-400" />
+            项目资产库
+            {project && (
+              <span className="text-sm font-normal text-slate-400 ml-1">— {project.name}</span>
+            )}
+          </DialogTitle>
+        </DialogHeader>
+
+        {/* 搜索框 */}
+        <div className="shrink-0 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+          <input
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="搜索立项名称、合同名称、资料名称…"
+            className="w-full pl-8 pr-8 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+            >
+              <XIcon className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+        {searchQuery && (
+          <p className="shrink-0 text-xs text-slate-500">
+            搜索「{searchQuery}」共找到 <span className="text-blue-400 font-medium">{totalResults}</span> 条结果
+          </p>
+        )}
+
+        <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+          {/* 合同文件 */}
+          <div className="bg-slate-800/50 rounded-xl overflow-hidden">
+            <button
+              onClick={() => toggleSection('contracts')}
+              className="w-full flex items-center gap-2 px-4 py-3 hover:bg-slate-700/30 transition-colors"
+            >
+              {expandedSections.contracts
+                ? <ChevronDown className="w-4 h-4 text-slate-400" />
+                : <ChevronRight className="w-4 h-4 text-slate-400" />}
+              <FileText className="w-4 h-4 text-blue-400" />
+              <span className="text-sm font-medium text-slate-200">合同文件</span>
+              <span className="ml-auto text-xs text-slate-500">{projectContracts.length} 份</span>
+            </button>
+            {expandedSections.contracts && (
+              <div className="px-4 pb-3 space-y-2">
+                {projectContracts.length === 0 ? (
+                  <p className="text-xs text-slate-500 py-2">暂无合同</p>
+                ) : projectContracts.map(c => (
+                  <div key={c.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-slate-800 border border-slate-700/50">
+                    <div className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+                      <FileText className="w-3.5 h-3.5 text-blue-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-slate-200 truncate">{c.contractName}</p>
+                      <p className="text-[10px] text-slate-500 mt-0.5">
+                        {c.contractNo} · {c.type} · ¥{c.amount.toLocaleString()}
+                      </p>
+                    </div>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                      c.status === '已签署' ? 'text-emerald-400 bg-emerald-500/10' : 'text-amber-400 bg-amber-500/10'
+                    }`}>{c.status}</span>
+                    <button
+                      onClick={() => toast.info(`查看合同：${c.contractName}`)}
+                      className="text-slate-500 hover:text-blue-400 transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 立项资料 */}
+          <div className="bg-slate-800/50 rounded-xl overflow-hidden">
+            <button
+              onClick={() => toggleSection('initDocs')}
+              className="w-full flex items-center gap-2 px-4 py-3 hover:bg-slate-700/30 transition-colors"
+            >
+              {expandedSections.initDocs
+                ? <ChevronDown className="w-4 h-4 text-slate-400" />
+                : <ChevronRight className="w-4 h-4 text-slate-400" />}
+              <FolderOpen className="w-4 h-4 text-amber-400" />
+              <span className="text-sm font-medium text-slate-200">立项资料</span>
+              <span className="ml-auto text-xs text-slate-500">含需求书、立项报告等</span>
+            </button>
+            {expandedSections.initDocs && (
+              <div className="px-4 pb-3 space-y-2">
+                {filteredInitDocs.length === 0 ? (
+                  <p className="text-xs text-slate-500 py-2">无匹配资料</p>
+                ) : filteredInitDocs.map(doc => (
+                  <div key={doc.name} className="flex items-center gap-3 p-2.5 rounded-lg bg-slate-800 border border-slate-700/50">
+                    <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
+                      <span className="text-[9px] font-bold text-amber-400">{doc.type}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-slate-200 truncate">{doc.name}</p>
+                      <p className="text-[10px] text-slate-500 mt-0.5">{doc.size} · 上传于 {doc.date}</p>
+                    </div>
+                    <button
+                      onClick={() => toast.info(`下载：${doc.name}`)}
+                      className="text-slate-500 hover:text-blue-400 transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 各节点交付物 */}
+          <div className="bg-slate-800/50 rounded-xl overflow-hidden">
+            <button
+              onClick={() => toggleSection('milestones')}
+              className="w-full flex items-center gap-2 px-4 py-3 hover:bg-slate-700/30 transition-colors"
+            >
+              {expandedSections.milestones
+                ? <ChevronDown className="w-4 h-4 text-slate-400" />
+                : <ChevronRight className="w-4 h-4 text-slate-400" />}
+              <Bot className="w-4 h-4 text-purple-400" />
+              <span className="text-sm font-medium text-slate-200">节点交付物</span>
+              <span className="ml-auto text-xs text-slate-500">{projectMilestones.length} 个节点</span>
+            </button>
+            {expandedSections.milestones && (
+              <div className="px-4 pb-3 space-y-2">
+                {projectMilestones.length === 0 ? (
+                  <p className="text-xs text-slate-500 py-2">暂无节点交付物</p>
+                ) : projectMilestones.map(m => (
+                  <div key={m.id} className="p-2.5 rounded-lg bg-slate-800 border border-slate-700/50">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
+                        <FileUp className="w-3.5 h-3.5 text-purple-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-slate-200 truncate">{m.name}</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          {m.type} · 提交人：{m.submitter} · 截止 {m.dueDate}
+                        </p>
+                      </div>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                        statusColor[m.status] || 'text-slate-400 bg-slate-500/10'
+                      }`}>{m.status}</span>
+                    </div>
+                    {m.deliverableDesc && (
+                      <p className="mt-1.5 ml-9 text-[10px] text-slate-400 leading-relaxed">{m.deliverableDesc}</p>
+                    )}
+                    {m.aiScore !== undefined && (
+                      <div className="mt-1.5 ml-9 flex items-center gap-2">
+                        <span className="text-[10px] text-slate-500">AI评分</span>
+                        <div className="w-12 h-1 bg-slate-700 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${
+                              m.aiScore >= 85 ? 'bg-emerald-500' : m.aiScore >= 70 ? 'bg-amber-500' : 'bg-red-500'
+                            }`}
+                            style={{ width: `${m.aiScore}%` }}
+                          />
+                        </div>
+                        <span className={`text-[10px] font-bold ${
+                          m.aiScore >= 85 ? 'text-emerald-400' : m.aiScore >= 70 ? 'text-amber-400' : 'text-red-400'
+                        }`}>{m.aiScore}分</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="shrink-0 pt-3 border-t border-slate-700/50 flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm transition-colors"
+          >
+            关闭
+          </button>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -259,6 +509,7 @@ export default function MilestonesPage() {
   const [filterProject, setFilterProject] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [uploadTarget, setUploadTarget] = useState<MilestoneItem | null>(null);
+  const [assetLibProject, setAssetLibProject] = useState<string | null>(null);
 
   const filtered = milestoneList.filter(m => {
     const matchProject = filterProject === 'all' || m.projectId === filterProject;
@@ -312,13 +563,25 @@ export default function MilestonesPage() {
           ))}
         </div>
 
-        <button
-          onClick={() => toast.info('新建里程碑功能将在二期上线')}
-          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-md transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          新建里程碑
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => {
+              const pid = filterProject !== 'all' ? filterProject : (projects[0]?.id || '');
+              setAssetLibProject(pid);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs rounded-md transition-colors border border-slate-600"
+          >
+            <Archive className="w-3.5 h-3.5 text-blue-400" />
+            项目资产库
+          </button>
+          <button
+            onClick={() => toast.info('新建里程碑功能将在二期上线')}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-md transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            新建里程碑
+          </button>
+        </div>
       </div>
 
       {/* 里程碑列表 */}
@@ -422,6 +685,15 @@ export default function MilestonesPage() {
         milestone={uploadTarget}
         onSubmit={updateMilestone}
       />
+      {/* 项目资产库弹窗 */}
+      {assetLibProject && (
+        <AssetLibraryDialog
+          open={!!assetLibProject}
+          onClose={() => setAssetLibProject(null)}
+          projectId={assetLibProject}
+          milestoneList={milestoneList}
+        />
+      )}
     </div>
   );
 }
