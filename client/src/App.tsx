@@ -93,7 +93,7 @@ function MainApp() {
       case 'notifications':
         return <PlaceholderPage title="通知设置" description="配置关键事件提醒规则（里程碑截止、合同到期、发票待审批等），将在二期上线。" />;
       case 'settings':
-        return <SystemPage />;
+        return <PlaceholderPage title="系统设置" description="平台基础配置，包括通知模板、审批流程、数据备份、安全策略等，将在二期上线。" />;
       default:
         return <DashboardBoss />;
     }
