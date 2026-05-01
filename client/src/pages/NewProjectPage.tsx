@@ -18,6 +18,117 @@ import {
   Paperclip, Link2, Sparkles, X
 } from 'lucide-react';
 
+
+
+// ── 预立项导入 Banner 组件 ──────────────────────────────────────────────
+function PreImportBanner({
+  mode,
+  onFill,
+}: {
+  mode: 'project' | 'contract';
+  onFill: (data: Record<string, string>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState('');
+  const [loading, setLoading] = useState(false);
+  const { run } = useAI({ model: 'gpt-4o-mini', temperature: 0.3, stream: false });
+
+  const handleImport = async () => {
+    const pp = MOCK_PRE_PROJECTS.find(p => p.id === selected);
+    if (!pp) return;
+    setLoading(true);
+    const docList = pp.docs.map(d => `- ${d.name}（${d.stage || ''}）`).join('\n') || '（暂无上传文件）';
+    const prompt = mode === 'project'
+      ? `你是一个项目管理助手。根据以下预立项资料，帮我回填正式立项表单字段，以 JSON 格式返回，字段包括：name（项目名称）、type（项目类型，从以下选择：软件开发/UI/UX设计/系统集成/数据分析/AI/算法/运维服务/其他）、budget（预算，纯数字）、startDate（计划开始日期，格式YYYY-MM-DD）、endDate（计划结束日期，格式YYYY-MM-DD）、description（项目描述，100字以内）。
+预立项名称：${pp.name}
+客户：${pp.client}
+预算：${pp.budget}
+时间：${pp.startDate} ~ ${pp.endDate}
+描述：${pp.description}
+已上传资料：
+${docList}
+只返回 JSON，不要其他文字。`
+      : `你是一个合同管理助手。根据以下预立项资料，帮我回填甲方合同表单字段，以 JSON 格式返回，字段包括：contractName（合同名称）、client（甲方/客户名称）、amount（合同金额，纯数字）、signDate（签订日期，格式YYYY-MM-DD）、startDate（合同开始日期，格式YYYY-MM-DD）、endDate（合同结束日期，格式YYYY-MM-DD）、contractInfo（合同说明，50字以内）。
+预立项名称：${pp.name}
+客户：${pp.client}
+预算：${pp.budget}
+时间：${pp.startDate} ~ ${pp.endDate}
+描述：${pp.description}
+已上传资料：
+${docList}
+只返回 JSON，不要其他文字。`;
+
+    try {
+      const result = await run([{ role: 'user' as const, content: prompt }]);
+      const jsonStr = (result || '').replace(/```json\n?|```/g, '').trim();
+      const parsed = JSON.parse(jsonStr);
+      onFill(parsed);
+      toast.success('AI 已根据预立项资料回填表单，请核对后继续');
+      setOpen(false);
+    } catch {
+      toast.error('AI 回填失败，请手动填写');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="mb-4">
+      {!open ? (
+        <button
+          onClick={() => setOpen(true)}
+          className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-blue-500/40 bg-blue-500/5 hover:bg-blue-500/10 transition-colors text-sm text-blue-400 hover:text-blue-300"
+        >
+          <Link2 className="w-4 h-4 shrink-0" />
+          <span className="font-medium">从预立项资料库导入</span>
+          <span className="text-xs text-slate-500 ml-1">— 选择预立项后 AI 自动回填表单字段</span>
+        </button>
+      ) : (
+        <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-blue-400 text-sm font-medium">
+              <Link2 className="w-4 h-4" />
+              从预立项资料库导入
+            </div>
+            <button onClick={() => setOpen(false)} className="text-slate-500 hover:text-slate-300">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-slate-400 text-xs">选择预立项（支持模糊搜索）</Label>
+            <PreProjectCombobox value={selected} onChange={setSelected} />
+            {selected && (
+              <div className="text-xs text-slate-500 bg-slate-800/60 rounded-lg p-2.5">
+                {(() => {
+                  const pp = MOCK_PRE_PROJECTS.find(p => p.id === selected)!;
+                  return (
+                    <div className="space-y-1">
+                      <div className="flex gap-4">
+                        <span>客户：<span className="text-slate-300">{pp.client}</span></span>
+                        <span>预算：<span className="text-emerald-400">¥{Number(pp.budget).toLocaleString()}</span></span>
+                      </div>
+                      <div>时间：<span className="text-slate-300">{pp.startDate} ~ {pp.endDate}</span></div>
+                      <div>资料：<span className="text-slate-300">{pp.docs.length > 0 ? pp.docs.map(d => d.name).join('、') : '暂无上传文件'}</span></div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+          <Button
+            size="sm"
+            onClick={handleImport}
+            disabled={!selected || loading}
+            className="w-full bg-blue-600 hover:bg-blue-500 text-white h-8 text-xs gap-1.5"
+          >
+            {loading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> AI 回填中...</> : <><Sparkles className="w-3.5 h-3.5" /> AI 智能回填表单</>}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── 人员池 ──────────────────────────────────────────────────
 const MEMBER_POOL = [
   { name: '张伟', dept: '产品部' }, { name: '刘芳', dept: '产品部' },
@@ -94,17 +205,91 @@ interface Attachment {
 }
 
 const MOCK_PRE_PROJECTS = [
-  { id: 'pp1', name: '智慧园区项目预立项', docs: [
-    { id: 'd1', name: '需求调研报告.docx', type: 'docx', size: '2.3MB' },
-    { id: 'd2', name: '技术预研报告.pdf', type: 'pdf', size: '4.1MB' },
-    { id: 'd3', name: '可行性研究报告.pdf', type: 'pdf', size: '3.8MB' },
-  ]},
-  { id: 'pp2', name: '供应链管理系统预立项', docs: [
-    { id: 'd4', name: '现有系统评估报告.pdf', type: 'pdf', size: '1.8MB' },
-    { id: 'd5', name: '需求规格说明书.docx', type: 'docx', size: '5.2MB' },
-  ]},
+  {
+    id: 'pp1', name: '智慧园区数字化平台', status: '进行中',
+    client: '厉川科技', budget: '800000', startDate: '2026-03-01', endDate: '2026-09-30',
+    description: '基于 IoT 与大数据的智慧园区综合管理平台，覆盖能耗、安防、访客、停车等模块。',
+    docs: [
+      { id: 'd1', name: '需求调研报告.docx', type: 'docx', size: '2.3MB', stage: '需求阶段' },
+      { id: 'd2', name: '技术预研报告.pdf', type: 'pdf', size: '4.1MB', stage: '预研阶段' },
+      { id: 'd3', name: '可行性研究报告.pdf', type: 'pdf', size: '3.8MB', stage: '可研阶段' },
+    ],
+  },
+  {
+    id: 'pp2', name: '供应链协同管理系统', status: '草稿',
+    client: '厉川物流', budget: '560000', startDate: '2026-04-01', endDate: '2026-07-30',
+    description: '整合采购、仓储、配送全链路，提升供应链透明度与协同效率。',
+    docs: [
+      { id: 'd4', name: '现有系统评估报告.pdf', type: 'pdf', size: '1.8MB', stage: '预研阶段' },
+      { id: 'd5', name: '需求规格说明书.docx', type: 'docx', size: '5.2MB', stage: '需求阶段' },
+    ],
+  },
+  {
+    id: 'pp3', name: 'AI 客服机器人接入', status: '进行中',
+    client: '厉川零零', budget: '120000', startDate: '2026-01-10', endDate: '2026-04-30',
+    description: '基于大模型的智能客服系统，支持多渠道接入，自动处理常见问题。',
+    docs: [],
+  },
 ];
 
+// ── 可搜索预立项 Combobox ──────────────────────────────────────────────
+function PreProjectCombobox({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const filtered = MOCK_PRE_PROJECTS.filter(p =>
+    !query || p.name.toLowerCase().includes(query.toLowerCase()) || p.client.toLowerCase().includes(query.toLowerCase())
+  );
+  const selected = MOCK_PRE_PROJECTS.find(p => p.id === value);
+  return (
+    <div className="relative">
+      <div
+        className="flex items-center gap-2 w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 cursor-pointer"
+        onClick={() => setOpen(o => !o)}
+      >
+        {selected ? (
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <span className="text-slate-100 text-sm truncate">{selected.name}</span>
+            <span className="text-xs text-slate-500 shrink-0">· {selected.client}</span>
+            <span className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${selected.status === '进行中' ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-700 text-slate-400'}`}>{selected.status}</span>
+          </div>
+        ) : (
+          <span className="text-slate-500 text-sm flex-1">搜索或选择预立项...</span>
+        )}
+        <span className="text-slate-500 text-xs">▾</span>
+      </div>
+      {open && (
+        <div className="absolute z-50 w-full mt-1 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl overflow-hidden">
+          <div className="p-2 border-b border-slate-700">
+            <input
+              autoFocus
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="输入项目名称或客户名搜索..."
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-100 placeholder-slate-500 outline-none focus:border-blue-500"
+            />
+          </div>
+          <div className="max-h-48 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <div className="px-3 py-3 text-xs text-slate-500 text-center">未找到匹配的预立项</div>
+            ) : filtered.map(p => (
+              <button
+                key={p.id}
+                onClick={() => { onChange(p.id); setOpen(false); setQuery(''); }}
+                className={`w-full flex items-center gap-2 px-3 py-2.5 hover:bg-slate-700 transition-colors text-left ${value === p.id ? 'bg-blue-600/20' : ''}`}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm text-slate-100 truncate">{p.name}</div>
+                  <div className="text-xs text-slate-500 mt-0.5">{p.client} · ¥{Number(p.budget).toLocaleString()} · {p.docs.length} 份资料</div>
+                </div>
+                <span className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${p.status === '进行中' ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-700 text-slate-400'}`}>{p.status}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 const AI_DOC_TEMPLATES = [
   { id: 'ai1', name: '项目立项申请书（AI生成）', desc: '包含项目背景、目标、范围、风险分析' },
   { id: 'ai2', name: '需求规格说明书模板（AI生成）', desc: '标准化需求文档框架，含功能清单' },
@@ -215,11 +400,7 @@ function AttachmentBlock({
       {/* 引用预立项资料 */}
       {tab === 'preproject' && (
         <div className="space-y-2">
-          <select value={selectedPP} onChange={e => setSelectedPP(e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-1.5">
-            <option value="">选择预立项...</option>
-            {MOCK_PRE_PROJECTS.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+          <PreProjectCombobox value={selectedPP} onChange={setSelectedPP} />
           {pp && (
             <div className="space-y-1">
               {pp.docs.map(d => (
@@ -287,8 +468,22 @@ function Step1({ data, onChange }: { data: Step1Data; onChange: (d: Step1Data) =
     onChange({ ...data, members: data.members.filter((_, i) => i !== idx) });
   };
 
+  const handleAIFill = (filled: Record<string, string>) => {
+    onChange({
+      ...data,
+      name: filled.name || data.name,
+      type: filled.type || data.type,
+      budget: filled.budget || data.budget,
+      startDate: filled.startDate || data.startDate,
+      endDate: filled.endDate || data.endDate,
+      description: filled.description || data.description,
+    });
+  };
+
   return (
     <div className="space-y-6">
+      {/* 预立项导入入口 */}
+      <PreImportBanner mode="project" onFill={handleAIFill} />
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2">
           <Label className="text-slate-300 text-sm">项目名称 <span className="text-red-400">*</span></Label>
@@ -645,8 +840,24 @@ function Step2({ data, onChange }: { data: ContractData; onChange: (d: ContractD
 
   const totalAmount = data.contracts.reduce((s, c) => s + (Number(c.amount) || 0), 0);
 
+  const handleAIFillContract = (filled: Record<string, string>) => {
+    if (data.contracts.length === 0) return;
+    const first = { ...data.contracts[0] };
+    if (filled.contractName) first.contractName = filled.contractName;
+    if (filled.client) first.client = filled.client;
+    if (filled.amount) first.amount = filled.amount;
+    if (filled.signDate) first.signDate = filled.signDate;
+    if (filled.startDate) first.startDate = filled.startDate;
+    if (filled.endDate) first.endDate = filled.endDate;
+    if (filled.contractInfo) first.contractInfo = filled.contractInfo;
+    const cs = [...data.contracts]; cs[0] = first;
+    onChange({ ...data, contracts: cs });
+  };
+
   return (
     <div className="space-y-4">
+      {/* 预立项导入入口 */}
+      <PreImportBanner mode="contract" onFill={handleAIFillContract} />
       {/* 标题区 */}
       <div className="flex items-center justify-between">
         <div>
