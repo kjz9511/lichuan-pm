@@ -595,6 +595,14 @@ function Step1({ data, onChange }: { data: Step1Data; onChange: (d: Step1Data) =
           </div>
         )}
       </div>
+      {/* 关联附件 */}
+      <div className="border-t border-slate-700/50 pt-4 mt-2">
+        <AttachmentBlock
+          attachments={data.attachments}
+          onChange={v => onChange({ ...data, attachments: v })}
+          context="项目信息附件"
+        />
+      </div>
     </div>
   );
 }
@@ -890,6 +898,14 @@ function Step2({ data, onChange }: { data: ContractData; onChange: (d: ContractD
             onRemove={() => removeContract(i)}
           />
         ))}
+      </div>
+      {/* 合同附件 */}
+      <div className="border-t border-slate-700/50 pt-4 mt-2">
+        <AttachmentBlock
+          attachments={data.attachments || []}
+          onChange={v => onChange({ ...data, attachments: v })}
+          context="合同附件（合同扫描件、补充协议等）"
+        />
       </div>
     </div>
   );
